@@ -1,0 +1,177 @@
+<html>
+<body>
+<script type="vertex" id="vs">
+        #version 300 es
+
+        in vec4 position;
+        in vec4 color;
+        out vec4 vColor;
+        uniform mat4 mvpMatrix;
+
+        void main() {
+            vColor = color;
+            gl_Position = mvpMatrix*position ;
+        }
+    </script>
+
+<script type="fragment" id="fs">
+        #version 300 es
+        precision highp float;
+
+        in vec4 vColor;
+        out vec4 fragColor;
+
+        void main() {
+            fragColor = vColor;
+        }
+    </script>
+
+
+<canvas id="webgl-canvas"></canvas>
+<script type="text/javascript" src="Common/MV.js"></script>
+<script>
+    let canvas = document.getElementById("webgl-canvas");
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    let aspect= canvas.width/canvas.height;
+    let eye,at,up;
+    let modelViewProjection;
+    let gl = canvas.getContext("webgl2");
+    if (!gl) {
+        console.error("WebGL 2 not available");
+        document.body.innerHTML = "This example requires WebGL 2 which is unavailable on this system."
+    }
+    gl.clearColor(0, 0, 0, 1);
+
+    gl.enable(gl.DEPTH_TEST);
+
+    let vsSource = document.getElementById("vs").text.trim();
+    let fsSource = document.getElementById("fs").text.trim();
+    let vertexShader = gl.createShader(gl.VERTEX_SHADER);
+    gl.shaderSource(vertexShader, vsSource);
+    gl.compileShader(vertexShader);
+    if (!gl.getShaderParameter(vertexShader, gl.COMPILE_STATUS)) {
+        console.error(gl.getShaderInfoLog(vertexShader));
+    }
+    let fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
+    gl.shaderSource(fragmentShader, fsSource);
+    gl.compileShader(fragmentShader);
+    if (!gl.getShaderParameter(fragmentShader, gl.COMPILE_STATUS)) {
+        console.error(gl.getShaderInfoLog(fragmentShader));
+    }
+    let program = gl.createProgram();
+    gl.attachShader(program, vertexShader);
+    gl.attachShader(program, fragmentShader);
+    gl.linkProgram(program);
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+        console.error(gl.getProgramInfoLog(program));
+    }
+    gl.useProgram(program);
+
+
+    let vertices=[
+        vec4(-0.5, -0.5,  1.5, 1.0),
+        vec4(-0.5,  0.5,  1.5, 1.0),
+        vec4(0.5,  0.5,  1.5, 1.0),
+        vec4(0.5, -0.5,  1.5, 1.0),
+        vec4(-0.5, -0.5, 0.5, 1.0),
+        vec4(-0.5,  0.5, 0.5, 1.0),
+        vec4(0.5,  0.5, 0.5, 1.0),
+        vec4( 0.5, -0.5, 0.5, 1.0)
+    ]
+    let positionsArray = [];
+    let colorsArray = [];
+
+    function quad(a, b, c, d) {
+        positionsArray.push(vertices[a]);
+        colorsArray.push(vertexColors[a]);
+        positionsArray.push(vertices[b]);
+        colorsArray.push(vertexColors[a]);
+        positionsArray.push(vertices[c]);
+        colorsArray.push(vertexColors[a]);
+        //segundo
+        positionsArray.push(vertices[a]);
+        colorsArray.push(vertexColors[a]);
+        positionsArray.push(vertices[c]);
+        colorsArray.push(vertexColors[a]);
+        positionsArray.push(vertices[d]);
+        colorsArray.push(vertexColors[a]);
+    }
+
+    let vertexColors = [
+        vec4(0.0, 0.0, 0.0, 1.0),  // black
+        vec4(1.0, 0.0, 0.0, 1.0),  // red
+        vec4(1.0, 1.0, 0.0, 1.0),  // yellow
+        vec4(0.0, 1.0, 0.0, 1.0),  // green
+        vec4(0.0, 0.0, 1.0, 1.0),  // blue
+        vec4(1.0, 0.0, 1.0, 1.0),  // magenta
+        vec4(0.0, 1.0, 1.0, 1.0),  // cyan
+        vec4(1.0, 1.0, 1.0, 1.0),  // white
+    ];
+
+    function colorCube()
+    {
+        quad(1, 0, 3, 2);
+        quad(2, 3, 7, 6);
+        quad(3, 0, 4, 7);
+        quad(6, 5, 1, 2);
+        quad(4, 5, 6, 7);
+        quad(5, 4, 0, 1);
+    }
+
+    colorCube();
+
+    let positionBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, flatten(positionsArray), gl.STATIC_DRAW);
+    let positionLoc = gl.getAttribLocation( program, "position");
+    gl.vertexAttribPointer(positionLoc, 4, gl.FLOAT, false, 0, 0);
+    gl.enableVertexAttribArray(positionLoc);
+
+
+    let colorBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, flatten(colorsArray), gl.STATIC_DRAW);
+    let colorLoc = gl.getAttribLocation(program, "color");
+    gl.vertexAttribPointer(colorLoc, 4, gl.FLOAT, false, 0, 0);
+    gl.enableVertexAttribArray(colorLoc);
+
+
+
+    ////////////////
+    // DRAW
+    ////////////////
+    //gl.clear(gl.COLOR_BUFFER_BIT);
+
+    let modelViewProjectionMatrixLoc = gl.getUniformLocation(program, "mvpMatrix");
+    let i=0;
+
+    let render = function (){
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT );
+        eye=vec3(0,0,3.5);
+        up=vec3(0,1,0);
+        at=vec3(0,0,0);
+        modelViewMatrix = mult(lookAt(eye,at,up),rotateY(i));
+        i=(i+1) % 360;
+        projectionMatrix = perspective(45,aspect,0.5,3.5);
+        modelViewProjection = mult(projectionMatrix,modelViewMatrix);
+        gl.uniformMatrix4fv(modelViewProjectionMatrixLoc,false,flatten(modelViewProjection));
+        gl.drawArrays(gl.TRIANGLES,0,positionsArray.length);
+
+        modelViewMatrix = mult(lookAt(eye,at,up),rotateY(-i));
+        projectionMatrix = perspective(45,aspect,0.5,3.5);
+        modelViewProjection = mult(projectionMatrix,modelViewMatrix);
+
+        gl.uniformMatrix4fv(modelViewProjectionMatrixLoc,false,flatten(modelViewProjection));
+        gl.drawArrays(gl.TRIANGLES,0,positionsArray.length);
+
+        requestAnimationFrame(render);
+    }
+
+    render ();
+
+</script>
+
+</body>
+
+</html>
