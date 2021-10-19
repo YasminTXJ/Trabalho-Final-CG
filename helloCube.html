@@ -158,12 +158,6 @@
         gl.uniformMatrix4fv(modelViewProjectionMatrixLoc,false,flatten(modelViewProjection));
         gl.drawArrays(gl.TRIANGLES,0,positionsArray.length);
 
-        modelViewMatrix = mult(lookAt(eye,at,up),rotateY(-i));
-        projectionMatrix = perspective(45,aspect,0.5,3.5);
-        modelViewProjection = mult(projectionMatrix,modelViewMatrix);
-
-        gl.uniformMatrix4fv(modelViewProjectionMatrixLoc,false,flatten(modelViewProjection));
-        gl.drawArrays(gl.TRIANGLES,0,positionsArray.length);
 
         requestAnimationFrame(render);
     }
