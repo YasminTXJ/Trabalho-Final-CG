@@ -44,7 +44,7 @@
             vec4 texcolor = texture(textureMap, ftexCoord );
             vec3 LightDir = normalize(lightPosition.xyz -pos3D.xyz);
             float diffuse = max(0.0,dot(LightDir,normalize(ipnormal.xyz)));
-            fragColor= texcolor*(diffuse*10.0 + ambient );
+            fragColor= texcolor*(ambient + diffuse)  ;
         }
     </script>
 
