@@ -78,7 +78,7 @@
             vec4 texcolor = texture(textureMap, ftexCoord );
             fragColor = texcolor*ambient;
 
-            if ( clamp(shadowCoord.x,0.0,1.0)==shadowCoord.x && clamp(shadowCoord.y,0.0,1.0)==shadowCoord.y  && shadowCoord.z - 0.003 <= depth ) {
+            if ( shadowCoord.z - 0.003 <= depth ) {
                 vec3 LightDir = normalize(lightPosition.xyz -pos3D.xyz);
                 float diffusefactor = max(0.0,dot(LightDir,normalize(ipnormal.xyz)));
                 fragColor= texcolor*(diffusefactor + ambient );
