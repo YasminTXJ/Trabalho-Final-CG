@@ -76,7 +76,7 @@
             vec3 shadowCoord = 0.5*lightViewPosition.xyz/lightViewPosition.w + 0.5;
             float depth = texture(shadowMap, shadowCoord.xy).r;
             vec4 texcolor = texture(textureMap, ftexCoord );
-            fragColor = texcolor*ambient;
+            fragColor = texcolor*ambient; //0.2
 
             if ( shadowCoord.z - 0.003 <= depth ) {
                 vec3 LightDir = normalize(lightPosition.xyz -pos3D.xyz);
