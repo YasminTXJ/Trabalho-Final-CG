@@ -42,27 +42,27 @@
 							/*gltf.parser.getDependencies( 'material' ).then( ( materials ) => {
 								console.log( materials );
 							} ); */
-							gltf.scene.traverse(  o => {
+							/*gltf.scene.traverse(  o => {
 								if (o.isMesh) {
 									let prevMaterial = o.material;
 									o.material = new THREE.MeshPhongMaterial();
 									THREE.MeshBasicMaterial.prototype.copy.call(o.material, prevMaterial);
 								}
-							});
+							});*/
 							scene.add(gltf.scene)
 						}
 				);
 
 				camera = new THREE.PerspectiveCamera( 45, window.innerWidth / window.innerHeight, 0.25, 20 );
 				camera.position.set( - 1.8, 0.6, 2.7 );
-				controls=  new FirstPersonControls(camera,renderer.domElement );
-				controls.lookSpeed = 0.1;
-				controls.movementSpeed = 5;
+				//controls=  new FirstPersonControls(camera,renderer.domElement );
+				//controls.lookSpeed = 0.1;
+				//controls.movementSpeed = 5;
 
-				/*controls = new OrbitControls( camera, renderer.domElement );
+				controls = new OrbitControls( camera, renderer.domElement );
 				controls.minDistance = 2;
 				controls.maxDistance = 10;
-				controls.target.set( 0, 0, 0 );*/
+				controls.target.set( 0, 0, 0 );
 
 				window.addEventListener( 'resize', onWindowResize );
 				renderer.setAnimationLoop(render);
