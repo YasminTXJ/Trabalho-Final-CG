@@ -247,6 +247,7 @@
     }
 
     colorCube();
+    //triangulo pequeno
     positionsArray.push(vec4(0.0, 1.0, 1.0, 1.0));
     texCoordsArray.push(texCoord[0]);
     normalsArray.push(vec4(0,0,1,1));
@@ -256,6 +257,7 @@
     positionsArray.push(vec4(-0.25, 0.5, 1.0, 1.0));
     texCoordsArray.push(texCoord[1]);
     normalsArray.push(vec4(0,0,1,1));
+    //triangulo grande
     positionsArray.push(vec4(-5, -1.0, -5, 1.0));
     texCoordsArray.push(texCoord[0]);
     normalsArray.push(vec4(0,1,0,1));
@@ -401,11 +403,11 @@
         gl.uniform1i(gl.getUniformLocation(program2, "shadowMap"), 0);
 
         gl.activeTexture(gl.TEXTURE1);
-        gl.bindTexture(gl.TEXTURE_2D, texture1);
+        //gl.bindTexture(gl.TEXTURE_2D, texture1);
         gl.uniform1i(gl.getUniformLocation(program2, "textureMap"), 1);
 
         gl.activeTexture(gl.TEXTURE2);
-        gl.bindTexture(gl.TEXTURE_2D, texture2);
+        //gl.bindTexture(gl.TEXTURE_2D, texture2);
         gl.uniform1i(gl.getUniformLocation(program2, "bumpMap"), 2)
 
         gl.clearColor(0.5, 0.5, 0.5, 1.0);
