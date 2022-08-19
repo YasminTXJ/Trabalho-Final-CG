@@ -1,3 +1,3 @@
-# cg2021
+# cg2022
 
-Computação Gráfica 2021
+Computação Gráfica 2022
