@@ -1,10 +1,26 @@
 <html>
 <body>
 <script type="vertex" id="vs">
-        #version 300 es
+#version 300 es
+layout ( location=0) in vec4 position;
+layout ( location=1) in vec3 color;
+out vec3 vColor;
+void main (){
+vec4 position2 = position;
+vColor= color;
+//position2.y = position2.y + 0.5;
+gl_Position=position2;
+}
+
 </script>
 <script type="fragment" id="fs">
-        #version 300 es
+#version 300 es
+precision highp float;
+in vec3 vColor;
+out vec4 fragColor;
+void main (){
+fragColor= vec4(vColor, 1.0);
+}
 </script>
 <canvas id="webgl-canvas"></canvas>
 <script>
@@ -16,12 +32,12 @@
         console.error("Meu deus, vc tá com um pc antigo !!");
     }
     gl.clear(0,0,0,1);
-  let vsSource = document.getElementById("vs").text.trim();
-  let vertex=gl.createShader(gl.VERTEX_SHADER);
-  gl.shaderSource(vertex,vsSource);
-  gl.compileShader(vertex);
-  if ( !gl.getShaderParameter(vertex,gl.COMPILE_STATUS)){
-      console.error(gl.getShaderInfoLog(vertex));
+    let vsSource = document.getElementById("vs").text.trim();
+    let vertex=gl.createShader(gl.VERTEX_SHADER);
+    gl.shaderSource(vertex,vsSource);
+    gl.compileShader(vertex);
+    if ( !gl.getShaderParameter(vertex,gl.COMPILE_STATUS)){
+        console.error(gl.getShaderInfoLog(vertex));
     }
     let fsSource = document.getElementById("fs").text.trim();
     let fragment=gl.createShader(gl.FRAGMENT_SHADER);
@@ -38,19 +54,35 @@
         console.error(gl.getProgramInfoLog(program));
     }
     gl.useProgram(program);
+
     let triangles = gl.createVertexArray();
     gl.bindVertexArray(triangles);
     let positions= new Float32Array([
         -0.5,-0.5,0.0,
-        0,5,-0.5,0.0,
+        0.5,-0.5,0.0,
         0.0,0.5,0.0
     ]);
 
     let positionBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER,positionBuffer);
     gl.bufferData(gl.ARRAY_BUFFER,positions,gl.STATIC_DRAW);
-    gl.vertexAttribPointer(0,3,gl.FLOAT,false,0,0)
-    
+    gl.vertexAttribPointer(0,3,gl.FLOAT,false,0,0);
+    gl.enableVertexAttribArray(0);
+
+    let colors= new Float32Array([
+        1.0,0.0,0.0,
+        0.0,1.0,0.0,
+        0.0,0.0,1.0
+    ]);
+
+    let colorBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER,colorBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER,colors,gl.STATIC_DRAW);
+    gl.vertexAttribPointer(1,3,gl.FLOAT,false,0,0);
+    gl.enableVertexAttribArray(1);
+
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.drawArrays(gl.TRIANGLES,0,3);
 
 </script>
 </body>
