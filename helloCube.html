@@ -99,7 +99,7 @@
     }
 
     let vertexColors = [
-        vec4(0.0, 0.0, 0.0, 1.0),  // black
+        vec4(0.5, 0.5, 0.5, 1.0),  // black
         vec4(1.0, 0.0, 0.0, 1.0),  // red
         vec4(1.0, 1.0, 0.0, 1.0),  // yellow
         vec4(0.0, 1.0, 0.0, 1.0),  // green
@@ -151,10 +151,13 @@
         eye=vec3(0,0,3.5);
         up=vec3(0,1,0);
         at=vec3(0,0,0);
-        modelViewMatrix = mult(lookAt(eye,at,up),rotateY(i));
         i=(i+1) % 360;
-        projectionMatrix = perspective(45,aspect,0.5,3.5);
-        modelViewProjection = mult(projectionMatrix,modelViewMatrix);
+        let translatem = translate(0,0,-1);
+        let detranslatem= translate(0,0,1);
+        let worldmatrix = mult(detranslatem,mult(rotateY(i),translatem));
+        let modelViewMatrix = mult(lookAt(eye,at,up),worldmatrix);
+        let projectionMatrix = perspective(45,aspect,0.5,7.5);
+        let modelViewProjection = mult(projectionMatrix,modelViewMatrix);
         gl.uniformMatrix4fv(modelViewProjectionMatrixLoc,false,flatten(modelViewProjection));
         gl.drawArrays(gl.TRIANGLES,0,positionsArray.length);
 
