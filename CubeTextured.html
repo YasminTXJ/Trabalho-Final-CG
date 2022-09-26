@@ -5,11 +5,15 @@
 
         in vec4 position;
         in vec4 color;
+        in vec2 texCoord;
         out vec4 vColor;
+        out vec2 ftexCoord;
         uniform mat4 mvpMatrix;
+
 
         void main() {
             vColor = color;
+            ftexCoord= texCoord;
             gl_Position = mvpMatrix*position ;
         }
     </script>
@@ -19,16 +23,20 @@
         precision highp float;
 
         in vec4 vColor;
+        in vec2 ftexCoord;
         out vec4 fragColor;
 
+        uniform sampler2D textureMap;
+
         void main() {
-            fragColor = vColor;
+            fragColor = texture (textureMap,ftexCoord) ;
         }
     </script>
 
 
 <canvas id="webgl-canvas"></canvas>
 <script type="text/javascript" src="Common/MV.js"></script>
+<img id="texImage" src="logo.png" hidden alt="blabla"/>
 <script>
     let canvas = document.getElementById("webgl-canvas");
     canvas.width = window.innerWidth;
@@ -42,7 +50,7 @@
         document.body.innerHTML = "This example requires WebGL 2 which is unavailable on this system."
     }
     gl.clearColor(0, 0, 0, 1);
-
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
     gl.enable(gl.DEPTH_TEST);
 
     let vsSource = document.getElementById("vs").text.trim();
@@ -66,7 +74,16 @@
     if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
         console.error(gl.getProgramInfoLog(program));
     }
+
     gl.useProgram(program);
+    let image = document.getElementById("texImage");
+    texture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D,texture);
+    gl.texImage2D(gl.TEXTURE_2D,0,gl.RGB,gl.RGB,gl.UNSIGNED_BYTE,image);
+    gl.generateMipmap(gl.TEXTURE_2D);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.Nearest);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.Nearest);
+    gl.uniform1i(gl.getUniformLocation(program,"textureMap"),0);
 
 
     let vertices=[
@@ -81,21 +98,28 @@
     ]
     let positionsArray = [];
     let colorsArray = [];
+    let texCoordArray = [];
 
     function quad(a, b, c, d) {
         positionsArray.push(vertices[a]);
         colorsArray.push(vertexColors[a]);
+        texCoordArray.push(texCoord[0]);
         positionsArray.push(vertices[b]);
         colorsArray.push(vertexColors[a]);
+        texCoordArray.push(texCoord[0]);
         positionsArray.push(vertices[c]);
         colorsArray.push(vertexColors[a]);
+        texCoordArray.push(texCoord[0]);
         //segundo
         positionsArray.push(vertices[a]);
         colorsArray.push(vertexColors[a]);
+        texCoordArray.push(texCoord[0]);
         positionsArray.push(vertices[c]);
         colorsArray.push(vertexColors[a]);
+        texCoordArray.push(texCoord[0]);
         positionsArray.push(vertices[d]);
         colorsArray.push(vertexColors[a]);
+        texCoordArray.push(texCoord[0]);
     }
 
     let vertexColors = [
@@ -108,6 +132,13 @@
         vec4(0.0, 1.0, 1.0, 1.0),  // cyan
         vec4(1.0, 1.0, 1.0, 1.0),  // white
     ];
+
+    let texCoord = [
+        vec2 (0,0),
+        vec2 (0,0),
+        vec2 (0,0),
+        vec2 (0,0),
+    ]
 
     function colorCube()
     {
@@ -136,6 +167,13 @@
     gl.vertexAttribPointer(colorLoc, 4, gl.FLOAT, false, 0, 0);
     gl.enableVertexAttribArray(colorLoc);
 
+    let tcBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, tcBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, flatten(texCoordArray), gl.STATIC_DRAW);
+    let texCoordLoc = gl.getAttribLocation(program, "texCoord");
+    gl.vertexAttribPointer(texCoordLoc, 2, gl.FLOAT, false, 0, 0);
+
+    gl.enableVertexAttribArray(colorLoc);
 
 
     ////////////////
