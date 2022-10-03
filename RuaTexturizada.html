@@ -26,10 +26,11 @@
         in vec2 ftexCoord;
         out vec4 fragColor;
 
-        uniform sampler2D textureMap;
+        uniform sampler2D textureMap0;
+        uniform sampler2D textureMap1;
 
         void main() {
-            fragColor = texture (textureMap,ftexCoord) ;
+            fragColor = texture (textureMap0,ftexCoord) ;
         }
     </script>
 
@@ -37,6 +38,8 @@
 <canvas id="webgl-canvas"></canvas>
 <script type="text/javascript" src="Common/MV.js"></script>
 <img id="texImage" src="asfalto.png" hidden alt="blabla"/>
+<img id="texImage2" src="faixa.png" hidden alt="blabla"/>
+
 <script>
     let canvas = document.getElementById("webgl-canvas");
     canvas.width = window.innerWidth;
@@ -76,15 +79,21 @@
     }
 
     gl.useProgram(program);
+
     let image = document.getElementById("texImage");
-    texture = gl.createTexture();
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D,texture);
-    gl.texImage2D(gl.TEXTURE_2D,0,gl.RGB,gl.RGB,gl.UNSIGNED_BYTE,image);
-    gl.generateMipmap(gl.TEXTURE_2D);
-    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);
-    gl.uniform1i(gl.getUniformLocation(program,"textureMap"),0);
+    confTexture(image,0);
+    let image2 = document.getElementById("texImage2");
+    confTexture(image2,1);
+    function confTexture(image, n) {
+        texture = gl.createTexture();
+        gl.activeTexture(gl.TEXTURE0+n);
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, image);
+        gl.generateMipmap(gl.TEXTURE_2D);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+        gl.uniform1i(gl.getUniformLocation(program, "textureMap"+n), 0+n);
+    }
 
 
     let vertices=[
@@ -131,10 +140,10 @@
     ];
 
     let texCoord = [
+        vec2 (0,20),
         vec2 (0,0),
-        vec2 (0,2),
-        vec2 (2,2),
-        vec2 (2,0),
+        vec2 (6,0),
+        vec2 (6,20),
     ]
 
     quad(1, 0, 3, 2);
