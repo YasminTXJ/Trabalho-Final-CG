@@ -50,7 +50,7 @@
         document.body.innerHTML = "This example requires WebGL 2 which is unavailable on this system."
     }
     gl.clearColor(0, 0, 0, 1);
-    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+    //gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
     gl.enable(gl.DEPTH_TEST);
 
     let vsSource = document.getElementById("vs").text.trim();
@@ -81,8 +81,8 @@
     gl.bindTexture(gl.TEXTURE_2D,texture);
     gl.texImage2D(gl.TEXTURE_2D,0,gl.RGB,gl.RGB,gl.UNSIGNED_BYTE,image);
     gl.generateMipmap(gl.TEXTURE_2D);
-    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.Nearest);
-    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.Nearest);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);
     gl.uniform1i(gl.getUniformLocation(program,"textureMap"),0);
 
 
@@ -106,20 +106,20 @@
         texCoordArray.push(texCoord[0]);
         positionsArray.push(vertices[b]);
         colorsArray.push(vertexColors[a]);
-        texCoordArray.push(texCoord[0]);
+        texCoordArray.push(texCoord[1]);
         positionsArray.push(vertices[c]);
         colorsArray.push(vertexColors[a]);
-        texCoordArray.push(texCoord[0]);
+        texCoordArray.push(texCoord[2]);
         //segundo
         positionsArray.push(vertices[a]);
         colorsArray.push(vertexColors[a]);
         texCoordArray.push(texCoord[0]);
         positionsArray.push(vertices[c]);
         colorsArray.push(vertexColors[a]);
-        texCoordArray.push(texCoord[0]);
+        texCoordArray.push(texCoord[2]);
         positionsArray.push(vertices[d]);
         colorsArray.push(vertexColors[a]);
-        texCoordArray.push(texCoord[0]);
+        texCoordArray.push(texCoord[3]);
     }
 
     let vertexColors = [
@@ -135,9 +135,9 @@
 
     let texCoord = [
         vec2 (0,0),
-        vec2 (0,0),
-        vec2 (0,0),
-        vec2 (0,0),
+        vec2 (0,2),
+        vec2 (2,2),
+        vec2 (2,0),
     ]
 
     function colorCube()
@@ -173,7 +173,7 @@
     let texCoordLoc = gl.getAttribLocation(program, "texCoord");
     gl.vertexAttribPointer(texCoordLoc, 2, gl.FLOAT, false, 0, 0);
 
-    gl.enableVertexAttribArray(colorLoc);
+    gl.enableVertexAttribArray(texCoordLoc);
 
 
     ////////////////
