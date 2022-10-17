@@ -39,10 +39,11 @@
         uniform sampler2D textureMap;
 
         void main() {
-            vec3  LigthDir = normalize (lightPosition.xyz - pos3D.xyz)
-            //normalize(ipnormal);
-            ??
-            fragColor = texture (textureMap,ftexCoord) ;
+            vec4 texcolor= texture (textureMap,ftexCoord) ;
+            vec3  LigthDir = normalize (lightPosition.xyz - pos3D.xyz);
+            float diffusefactor = max(0.0,dot(LigthDir,normalize (ipnormal.xyz)));
+            fragColor = texcolor*(ambient + diffusefactor*diffuse);
+            fragColor.a=1.0;
         }
     </script>
 
@@ -51,7 +52,6 @@
 <script type="text/javascript" src="Common/MV.js"></script>
 <img id="texImage" src="logo.png" hidden alt="blabla"/>
 <script>
-    import {sub} from "./examples/jsm/renderers/nodes/ShaderNode";
 
     let canvas = document.getElementById("webgl-canvas");
     canvas.width = window.innerWidth;
@@ -122,25 +122,32 @@
         let t2 = subtract( vertices[c],vertices[b]);
         let normal= cross(t1,t2);
         normal = vec3 (normal);
+
         positionsArray.push(vertices[a]);
         colorsArray.push(vertexColors[a]);
         texCoordArray.push(texCoord[0]);
+        normalArray.push(normal);
         positionsArray.push(vertices[b]);
         colorsArray.push(vertexColors[a]);
         texCoordArray.push(texCoord[1]);
+        normalArray.push(normal);
         positionsArray.push(vertices[c]);
         colorsArray.push(vertexColors[a]);
         texCoordArray.push(texCoord[2]);
+        normalArray.push(normal);
         //segundo
         positionsArray.push(vertices[a]);
         colorsArray.push(vertexColors[a]);
         texCoordArray.push(texCoord[0]);
+        normalArray.push(normal);
         positionsArray.push(vertices[c]);
         colorsArray.push(vertexColors[a]);
         texCoordArray.push(texCoord[2]);
+        normalArray.push(normal);
         positionsArray.push(vertices[d]);
         colorsArray.push(vertexColors[a]);
         texCoordArray.push(texCoord[3]);
+        normalArray.push(normal);
     }
 
     let vertexColors = [
@@ -194,14 +201,28 @@
     gl.bufferData(gl.ARRAY_BUFFER, flatten(texCoordArray), gl.STATIC_DRAW);
     let texCoordLoc = gl.getAttribLocation(program, "texCoord");
     gl.vertexAttribPointer(texCoordLoc, 2, gl.FLOAT, false, 0, 0);
-
     gl.enableVertexAttribArray(texCoordLoc);
 
+    let nBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, nBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, flatten(normalArray), gl.STATIC_DRAW);
+    let normalLoc = gl.getAttribLocation(program, "normal");
+    gl.vertexAttribPointer(normalLoc,3,gl.FLOAT, false, 0, 0);
+    gl.enableVertexAttribArray(normalLoc);
 
     ////////////////
     // DRAW
     ////////////////
     //gl.clear(gl.COLOR_BUFFER_BIT);
+
+    const lightAmbient = vec4(0.2,0.2,0.2,1.0);
+    const lightDiffuse = vec4(1.0,1.0,1.0,1.0);
+    const lightPosition = vec4(0.0,0.0,1.8,1.0);
+
+    let modelMatrixLoc = gl.getUniformLocation(program, "modelMatrix");
+    gl.uniform4fv(gl.getUniformLocation(program,'diffuse'),lightDiffuse);
+    gl.uniform4fv(gl.getUniformLocation(program,'ambient'),lightAmbient);
+    gl.uniform4fv(gl.getUniformLocation(program,'lightPosition'),lightPosition);
 
     let modelViewProjectionMatrixLoc = gl.getUniformLocation(program, "mvpMatrix");
     let i=0;
@@ -214,10 +235,11 @@
         i=(i+1) % 360;
         let translatem = translate(0,0,-1);
         let detranslatem= translate(0,0,1);
-        let worldmatrix = mult(detranslatem,mult(rotateY(i),translatem));
-        let modelViewMatrix = mult(lookAt(eye,at,up),worldmatrix);
+        let modelmatrix = mult(detranslatem,mult(rotateY(i),translatem));
+        let modelViewMatrix = mult(lookAt(eye,at,up),modelmatrix);
         let projectionMatrix = perspective(45,aspect,0.5,7.5);
         let modelViewProjection = mult(projectionMatrix,modelViewMatrix);
+        gl.uniformMatrix4fv(modelMatrixLoc,false,flatten(modelmatrix));
         gl.uniformMatrix4fv(modelViewProjectionMatrixLoc,false,flatten(modelViewProjection));
         gl.drawArrays(gl.TRIANGLES,0,positionsArray.length);
         requestAnimationFrame(render);

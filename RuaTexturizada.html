@@ -32,8 +32,10 @@
             vec4 text0 = texture(textureMap0, ftexCoord);
             vec2 ftexCoord1= ftexCoord;
             ftexCoord1.x = ftexCoord1.x / 6.0;
+            ftexCoord1.y = ftexCoord1.y / 20.0;
             vec4 text1 = texture(textureMap1, ftexCoord1);
-            fragColor = (text0*text0.a + text1*text1.a)/(text0.a+text1.a);
+            text1 =text1*text1.a;
+            fragColor = text0 + text1;
             fragColor.a=1.0;
         }
     </script>
@@ -42,7 +44,7 @@
 <canvas id="webgl-canvas"></canvas>
 <script type="text/javascript" src="Common/MV.js"></script>
 <img id="texImage" src="asfalto.png" hidden alt="blabla"/>
-<img id="texImage2" src="linhas.png" hidden alt="blabla"/>
+<img id="texImage2" src="line.png" hidden alt="blabla"/>
 
 <script>
     let canvas = document.getElementById("webgl-canvas");
