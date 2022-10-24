@@ -38,12 +38,16 @@
         uniform vec4 ambient;
         uniform vec4 diffuse;
         uniform sampler2D textureMap;
+        uniform vec4 camPosition;
 
         void main() {
             vec4 texcolor= texture (textureMap,ftexCoord) ;
             vec3  LigthDir = normalize (lightPosition.xyz - pos3D.xyz);
             float diffusefactor = max(0.0,dot(LigthDir,normalize(ipnormal.xyz)));
-            fragColor = texcolor*(ambient + diffusefactor*diffuse);
+            vec4  VewDir = normalize ( camPosition - pos3D);
+            vec3  reflected = reflect (-LigthDir,normalize(ipnormal.xyz));
+            float  specularfactor =  pow (  max( dot(reflected,VewDir.xyz),0.0),1.0 );
+            fragColor = texcolor*(ambient + diffusefactor*diffuse  + specularfactor );
             fragColor.a=1.0;
         }
     </script>
@@ -218,13 +222,13 @@
 
     const lightAmbient = vec4(0.2,0.2,0.2,1.0);
     const lightDiffuse = vec4(1.0,1.0,1.0,1.0);
-    const lightPosition = vec4(0.0,0.0,1.8,1.0);
+    const lightPosition = vec4(0.0,1.0,1.8,1.0);
 
     let modelMatrixLoc = gl.getUniformLocation(program, "modelMatrix");
+    let camPostionLoc = gl.getUniformLocation(program,'camPosition');
     gl.uniform4fv(gl.getUniformLocation(program,'diffuse'),lightDiffuse);
     gl.uniform4fv(gl.getUniformLocation(program,'ambient'),lightAmbient);
     gl.uniform4fv(gl.getUniformLocation(program,'lightPosition'),lightPosition);
-
     let modelViewProjectionMatrixLoc = gl.getUniformLocation(program, "mvpMatrix");
     let i=0;
 
@@ -240,6 +244,8 @@
         let modelViewMatrix = mult(lookAt(eye,at,up),modelmatrix);
         let projectionMatrix = perspective(45,aspect,0.5,7.5);
         let modelViewProjection = mult(projectionMatrix,modelViewMatrix);
+        let eye4= vec4(0.0,0.0,3.5,1.0);
+        gl.uniform4fv(camPostionLoc,eye4);
         gl.uniformMatrix4fv(modelMatrixLoc,false,flatten(modelmatrix));
         gl.uniformMatrix4fv(modelViewProjectionMatrixLoc,false,flatten(modelViewProjection));
         gl.drawArrays(gl.TRIANGLES,0,positionsArray.length);
