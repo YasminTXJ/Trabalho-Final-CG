@@ -43,6 +43,7 @@
             vec4 normal2 = vec4(normal,0);
             pos3D = modelMatrix*position;
             ipnormal = modelMatrix * normal2;
+            lightViewPosition = l_mvpMatrix*position;
             gl_Position = mvpMatrix*position ;
         }
     </script>
@@ -67,13 +68,18 @@
         uniform vec4 camPosition;
 
         void main() {
+            vec3 shadowcoord = 0.5*lightViewPosition.xyz/lightViewPosition.w + 0.5;
+            float depth = texture (shadowMap,shadowcoord.xy).r ;
             vec4 texcolor= texture (textureMap,ftexCoord) ;
-            vec3  LigthDir = normalize (lightPosition.xyz - pos3D.xyz);
-            float diffusefactor = max(0.0,dot(LigthDir,normalize(ipnormal.xyz)));
-            vec4  VewDir = normalize ( camPosition - pos3D);
-            vec3  reflected = reflect (-LigthDir,normalize(ipnormal.xyz));
-            float  specularfactor =  pow (  max( dot(reflected,VewDir.xyz),0.0),1.0 );
-            fragColor = texcolor*(ambient + diffusefactor*diffuse  + specularfactor );
+            fragColor = texcolor*ambient;
+            if ( shadowcoord.z - 0.003 <= depth){
+                vec3  LigthDir = normalize (lightPosition.xyz - pos3D.xyz);
+                float diffusefactor = max(0.0,dot(LigthDir,normalize(ipnormal.xyz)));
+                vec4  VewDir = normalize ( camPosition - pos3D);
+                vec3  reflected = reflect (-LigthDir,normalize(ipnormal.xyz));
+                float  specularfactor =  pow (  max( dot(reflected,VewDir.xyz),0.0),1.0 );
+                fragColor = texcolor*(ambient + diffusefactor*diffuse  + specularfactor );
+            }
             fragColor.a=1.0;
         }
     </script>
@@ -94,8 +100,9 @@
         console.error("WebGL 2 not available");
         document.body.innerHTML = "This example requires WebGL 2 which is unavailable on this system."
     }
-    gl.clearColor(0, 0, 0, 1);
+    gl.clearColor(1.0, 1.0, 1.0, 1);
     //gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+
     gl.enable(gl.DEPTH_TEST);
 
 
@@ -207,23 +214,23 @@
     //triangulo1
     positionsArray.push(vec4(0.0,1.0,1.0,1.0));
     texCoordArray.push(texCoord[0]);
-    normalArray.push(vec3(0,0,1,1));
+    normalArray.push(vec3(0,0,1));
     positionsArray.push(vec4(0.25,0.5,1.0,1.0));
     texCoordArray.push(texCoord[0]);
-    normalArray.push(vec3(0,0,1,1));
+    normalArray.push(vec3(0,0,1));
     positionsArray.push(vec4(-0.25,0.5,1.0,1.0));
     texCoordArray.push(texCoord[0]);
-    normalArray.push(vec3(0,0,1,1));
+    normalArray.push(vec3(0,0,1));
     //triangulo2
     positionsArray.push(vec4(-5,-1,-5,1.0));
     texCoordArray.push(texCoord[0]);
-    normalArray.push(vec3(0,1,0,1));
+    normalArray.push(vec3(0,1,0));
     positionsArray.push(vec4(5,-1,-5,1.0));
     texCoordArray.push(texCoord[0]);
-    normalArray.push(vec3(0,1,0,1));
+    normalArray.push(vec3(0,1,0));
     positionsArray.push(vec4(0,-1,5,1.0));
     texCoordArray.push(texCoord[0]);
-    normalArray.push(vec3(0,1,0,1));
+    normalArray.push(vec3(0,1,0));
 
 
 
@@ -274,6 +281,7 @@
 
     const lightAmbient = vec4(0.2,0.2,0.2,1.0);
     const lightDiffuse = vec4(1.0,1.0,1.0,1.0);
+    const v3lightPosition = vec3(0.0,3.0,5.0);
     const lightPosition = vec4(0.0,3.0,5,1.0);
 
     gl.useProgram(program);
@@ -303,18 +311,19 @@
 
 
     let render = function (){
+        gl.clearColor(1.0, 1.0, 1.0, 1);
         gl.bindFramebuffer(gl.FRAMEBUFFER,framebuffer);
         gl.bindRenderbuffer(gl.RENDERBUFFER,renderbuffer);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT );
 
         gl.useProgram(program);
 
-        eye=vec3(0.0,3,5);
+        eye=v3lightPosition;
         up=vec3(0,1,0);
         at=vec3(0,0,0);
         i=(i+1) % 360;
         let translatem = translate(0,0,-1);
-        let detranslatem= translate(0,0,1);
+        let detranslatem= translate(0,0,0);
         let modelmatrix = mult(detranslatem,mult(rotateY(i),translatem));
         let viewMatrix = lookAt(eye,at,up);
         let modelViewMatrix = mult(viewMatrix,modelmatrix);
@@ -343,22 +352,21 @@
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT );
 
         eye=vec3(7,1,3.5);
+        let eye4=vec4(7,1,3.5,1.0);
         up=vec3(0,1,0);
         at=vec3(0,0,0);
-        translatem = translate(0,0,-1);
-        detranslatem= translate(0,0,1);
-        modelmatrix = mult(detranslatem,mult(rotateY(i),translatem));
         viewMatrix = lookAt(eye,at,up);
         modelViewMatrix = mult(viewMatrix,modelmatrix);
         projectionMatrix = perspective(45,aspect,3,10);
         let viewProjection = mult(projectionMatrix,viewMatrix);
         let modelViewProjection = mult(projectionMatrix,modelViewMatrix);
-        let eye4=vec3(7,1,3.5,1.0);
+
         gl.uniform4fv(camPostionLoc,eye4);
         gl.uniformMatrix4fv(modelMatrixLoc,false,flatten(modelmatrix));
         gl.uniformMatrix4fv(modelViewProjectionMatrixLoc,false,flatten(modelViewProjection));
         gl.uniformMatrix4fv(l_modelViewProjectionMatrixLoc2,false,flatten(l_modelViewProjection));
         gl.drawArrays(gl.TRIANGLES,0,36);
+        modelmatrix = rotateY(0);
         gl.uniformMatrix4fv(modelMatrixLoc,false,flatten(modelmatrix));
         gl.uniformMatrix4fv(modelViewProjectionMatrixLoc,false,flatten(viewProjection));
         gl.uniformMatrix4fv(l_modelViewProjectionMatrixLoc2,false,flatten(l_viewProjection));
