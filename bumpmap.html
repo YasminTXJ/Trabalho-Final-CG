@@ -26,10 +26,14 @@
         in vec4 color;
         in vec2 texCoord;
         in vec3 normal;
+        in vec3 binormal;
+        in vec3 tangent;
 
         out vec4 vColor;
         out vec2 ftexCoord;
         out vec4 pos3D;
+        out vec4 ipbinormal;
+        out vec4 iptangent;
         out vec4 ipnormal;
         out vec4 lightViewPosition;
 
@@ -40,9 +44,10 @@
         void main() {
             vColor = color;
             ftexCoord= texCoord;
-            vec4 normal2 = vec4(normal,0);
             pos3D = modelMatrix*position;
-            ipnormal = modelMatrix * normal2;
+            ipnormal = modelMatrix * vec4(normal,0);
+            ipbinormal = modelMatrix * vec4(binormal,0);
+            iptangent = modelMatrix * vec4(tangent,0);
             lightViewPosition = l_mvpMatrix*position;
             gl_Position = mvpMatrix*position ;
         }
@@ -57,6 +62,8 @@
         in vec2 ftexCoord;
         in vec4 ipnormal;
         in vec4 lightViewPosition;
+        in vec4 iptangent;
+        in vec4 ipbinormal;
 
         out vec4 fragColor;
 
@@ -65,6 +72,7 @@
         uniform vec4 diffuse;
         uniform sampler2D shadowMap;
         uniform sampler2D textureMap;
+        uniform sampler2D bumpMap;
         uniform vec4 camPosition;
 
         void main() {
@@ -72,13 +80,16 @@
             float depth = texture (shadowMap,shadowcoord.xy).r ;
             vec4 texcolor= texture (textureMap,ftexCoord) ;
             fragColor = texcolor*ambient;
+            vec3  bumpnormal = 2.0*texture(bumpMap,ftexCoord).xyz -1.0;
+            mat3 TBN = mat3(normalize(iptangent.xyz),normalize(ipbinormal.xyz),normalize(ipnormal.xyz));
+            vec3 truenormal =normalize(TBN*bumpnormal);
             if ( shadowcoord.z - 0.003 <= depth){
                 vec3  LigthDir = normalize (lightPosition.xyz - pos3D.xyz);
-                float diffusefactor = max(0.0,dot(LigthDir,normalize(ipnormal.xyz)));
+                float diffusefactor = clamp(dot(LigthDir,normalize(truenormal.xyz)),0.0,1.0);
                 vec4  VewDir = normalize ( camPosition - pos3D);
-                vec3  reflected = reflect (-LigthDir,normalize(ipnormal.xyz));
-                float  specularfactor =  pow (  max( dot(reflected,VewDir.xyz),0.0),1.0 );
-                fragColor = texcolor*(ambient + diffusefactor*diffuse  + specularfactor );
+                vec3  reflected = reflect (-LigthDir,normalize(truenormal.xyz));
+                float  specularfactor =  pow (  max( dot(reflected,VewDir.xyz),0.0),10.0 );
+                fragColor = texcolor*(ambient + diffusefactor*diffuse + specularfactor  );
             }
             fragColor.a=1.0;
         }
@@ -88,12 +99,14 @@
 <canvas id="webgl-canvas"  width="1024"  height="1024" > </canvas>
 <script type="text/javascript" src="Common/MV.js"></script>
 <script type="text/javascript" src="Common/initShaders.js"></script>
-<img id="texImage" src="logo.png" hidden alt="blabla"/>
+<img id="texImage" src="stone01.png" hidden alt="blabla"/>
+<img id="bumpImage" src="bump01.png" hidden alt="blabla"/>
 <script>
-
+window.onload=  () =>
+{
     let canvas = document.getElementById("webgl-canvas");
-    let aspect= canvas.width/canvas.height;
-    let eye,at,up;
+    let aspect = canvas.width / canvas.height;
+    let eye, at, up;
     let modelViewProjection;
     let gl = canvas.getContext("webgl2");
     if (!gl) {
@@ -106,87 +119,109 @@
     gl.enable(gl.DEPTH_TEST);
 
 
-    let program = initShaders(gl,"smvs","smfs");
-    let program2 = initShaders(gl,"vs","fs");
+    let program = initShaders(gl, "smvs", "smfs");
+    let program2 = initShaders(gl, "vs", "fs");
 
     gl.useProgram(program);
     let shadowmap = gl.createTexture();
     gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D,shadowmap);
-    gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,1024,1024,0,gl.RGBA,gl.UNSIGNED_BYTE,null);
+    gl.bindTexture(gl.TEXTURE_2D, shadowmap);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1024, 1024, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
     gl.generateMipmap(gl.TEXTURE_2D);
-    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 
 
     gl.useProgram(program2);
     let image = document.getElementById("texImage");
-    texture = gl.createTexture();
+    let texture = gl.createTexture();
     gl.activeTexture(gl.TEXTURE1);
-    gl.bindTexture(gl.TEXTURE_2D,texture);
-    gl.texImage2D(gl.TEXTURE_2D,0,gl.RGB,gl.RGB,gl.UNSIGNED_BYTE,image);
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, image);
     gl.generateMipmap(gl.TEXTURE_2D);
-    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+
+    gl.useProgram(program2);
+    let bumpimage = document.getElementById("bumpImage");
+    let texturebump = gl.createTexture();
+    gl.activeTexture(gl.TEXTURE2);
+    gl.bindTexture(gl.TEXTURE_2D, texturebump);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, bumpimage);
+    gl.generateMipmap(gl.TEXTURE_2D);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
 
 
-
-    let vertices=[
-        vec4(-0.5, -0.5,  1.5, 1.0),
-        vec4(-0.5,  0.5,  1.5, 1.0),
-        vec4(0.5,  0.5,  1.5, 1.0),
-        vec4(0.5, -0.5,  1.5, 1.0),
+    let vertices = [
+        vec4(-0.5, -0.5, 1.5, 1.0),
+        vec4(-0.5, 0.5, 1.5, 1.0),
+        vec4(0.5, 0.5, 1.5, 1.0),
+        vec4(0.5, -0.5, 1.5, 1.0),
         vec4(-0.5, -0.5, 0.5, 1.0),
-        vec4(-0.5,  0.5, 0.5, 1.0),
-        vec4(0.5,  0.5, 0.5, 1.0),
-        vec4( 0.5, -0.5, 0.5, 1.0)
+        vec4(-0.5, 0.5, 0.5, 1.0),
+        vec4(0.5, 0.5, 0.5, 1.0),
+        vec4(0.5, -0.5, 0.5, 1.0)
     ]
     let positionsArray = [];
     let colorsArray = [];
-    let texCoordsArray = [];
-    let normalsArray = [];
-    let tangentArray =[];
-    let binormalArray=[];
+    let texCoordArray = [];
+    let normalArray = [];
+    let tangentArray = [];
+    let binormalArray = [];
+
     //1,0,3,2
     function quad(a, b, c, d) {
-        let tangent = normalize(subtract(vertices[b], vertices[a]),true);
-        let binormal = normalize(subtract(vertices[c], vertices[b]),true);
+        let tangent = normalize(subtract(vertices[b], vertices[a]), true);
+        let binormal = normalize(subtract(vertices[c], vertices[b]), true);
         let normal = cross(tangent, binormal);
-        normal = vec3(normal);
+
+        binormal = vec3(binormal[0], binormal[1], binormal[2]);
+        tangent = vec3(tangent[0], tangent[1], tangent[2]);
 
         positionsArray.push(vertices[a]);
         colorsArray.push(vertexColors[a]);
-        texCoordsArray.push(texCoord[0]);
-        normalsArray.push(normal);
+        texCoordArray.push(texCoord[0]);
+        normalArray.push(normal);
         tangentArray.push(tangent);
         binormalArray.push(binormal);
         positionsArray.push(vertices[b]);
         colorsArray.push(vertexColors[a]);
         texCoordArray.push(texCoord[1]);
         normalArray.push(normal);
+        tangentArray.push(tangent);
+        binormalArray.push(binormal);
         positionsArray.push(vertices[c]);
         colorsArray.push(vertexColors[a]);
         texCoordArray.push(texCoord[2]);
         normalArray.push(normal);
+        tangentArray.push(tangent);
+        binormalArray.push(binormal);
         //segundo
         positionsArray.push(vertices[a]);
         colorsArray.push(vertexColors[a]);
         texCoordArray.push(texCoord[0]);
         normalArray.push(normal);
+        tangentArray.push(tangent);
+        binormalArray.push(binormal);
         positionsArray.push(vertices[c]);
         colorsArray.push(vertexColors[a]);
         texCoordArray.push(texCoord[2]);
         normalArray.push(normal);
+        tangentArray.push(tangent);
+        binormalArray.push(binormal);
         positionsArray.push(vertices[d]);
         colorsArray.push(vertexColors[a]);
         texCoordArray.push(texCoord[3]);
         normalArray.push(normal);
+        tangentArray.push(tangent);
+        binormalArray.push(binormal);
     }
 
     let vertexColors = [
-        vec4(0.5, 0.5, 0.5, 1.0),  // black
+        vec4(0.0, 0.0, 0.0, 1.0),  // black
         vec4(1.0, 0.0, 0.0, 1.0),  // red
         vec4(1.0, 1.0, 0.0, 1.0),  // yellow
         vec4(0.0, 1.0, 0.0, 1.0),  // green
@@ -197,15 +232,14 @@
     ];
 
     let texCoord = [
-        vec2 (0,0),
-        vec2 (0,2),
-        vec2 (2,2),
-        vec2 (2,0),
+        vec2(0, 0),
+        vec2(0, 1),
+        vec2(1, 1),
+        vec2(1, 0),
     ]
 
 
-    function colorCube()
-    {
+    function colorCube() {
         quad(1, 0, 3, 2);
         quad(2, 3, 7, 6);
         quad(0, 4, 7, 3);
@@ -216,44 +250,55 @@
 
     colorCube();
     //triangulo1
-    positionsArray.push(vec4(0.0,1.0,1.0,1.0));
+    positionsArray.push(vec4(0.0, 1.0, 1.0, 1.0));
     texCoordArray.push(texCoord[0]);
-    normalArray.push(vec3(0,0,1));
-    positionsArray.push(vec4(0.25,0.5,1.0,1.0));
+    normalArray.push(vec3(0, 0, 1));
+    binormalArray.push(vec4(0, 1, 0, 0));
+    tangentArray.push(vec4(1, 0, 0, 0));
+    positionsArray.push(vec4(0.25, 0.5, 1.0, 1.0));
     texCoordArray.push(texCoord[0]);
-    normalArray.push(vec3(0,0,1));
-    positionsArray.push(vec4(-0.25,0.5,1.0,1.0));
+    normalArray.push(vec3(0, 0, 1));
+    binormalArray.push(vec4(0, 1, 0, 0));
+    tangentArray.push(vec4(1, 0, 0, 0));
+    positionsArray.push(vec4(-0.25, 0.5, 1.0, 1.0));
     texCoordArray.push(texCoord[0]);
-    normalArray.push(vec3(0,0,1));
+    normalArray.push(vec3(0, 0, 1));
+    binormalArray.push(vec4(0, 1, 0, 0));
+    tangentArray.push(vec4(1, 0, 0, 0));
     //triangulo2
-    positionsArray.push(vec4(-5,-1,-5,1.0));
+    positionsArray.push(vec4(-5, -1, -5, 1.0));
     texCoordArray.push(texCoord[0]);
-    normalArray.push(vec3(0,1,0));
-    positionsArray.push(vec4(5,-1,-5,1.0));
+    normalArray.push(vec3(0, 1, 0));
+    binormalArray.push(vec4(1, 0, 0, 0));
+    tangentArray.push(vec4(0, 0, 1, 0));
+    positionsArray.push(vec4(5, -1, -5, 1.0));
     texCoordArray.push(texCoord[0]);
-    normalArray.push(vec3(0,1,0));
-    positionsArray.push(vec4(0,-1,5,1.0));
+    normalArray.push(vec3(0, 1, 0));
+    binormalArray.push(vec4(1, 0, 0, 0));
+    tangentArray.push(vec4(0, 0, 1, 0));
+    positionsArray.push(vec4(0, -1, 5, 1.0));
     texCoordArray.push(texCoord[0]);
-    normalArray.push(vec3(0,1,0));
-
+    normalArray.push(vec3(0, 1, 0));
+    binormalArray.push(vec4(1, 0, 0, 0));
+    tangentArray.push(vec4(0, 0, 1, 0));
 
 
     gl.useProgram(program);
-    let positionBuffer2 = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer2);
-    gl.bufferData(gl.ARRAY_BUFFER, flatten(positionsArray), gl.STATIC_DRAW);
-    let positionLoc2 = gl.getAttribLocation( program, "position");
-    gl.vertexAttribPointer(positionLoc2, 4, gl.FLOAT, false, 0, 0);
-    gl.enableVertexAttribArray(positionLoc2);
-
-
-    gl.useProgram(program2);
     let positionBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, flatten(positionsArray), gl.STATIC_DRAW);
-    let positionLoc = gl.getAttribLocation( program2, "position");
+    let positionLoc = gl.getAttribLocation(program, "position");
     gl.vertexAttribPointer(positionLoc, 4, gl.FLOAT, false, 0, 0);
     gl.enableVertexAttribArray(positionLoc);
+
+
+    gl.useProgram(program2);
+    let positionBuffer2 = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer2);
+    gl.bufferData(gl.ARRAY_BUFFER, flatten(positionsArray), gl.STATIC_DRAW);
+    let positionLoc2 = gl.getAttribLocation(program2, "position");
+    gl.vertexAttribPointer(positionLoc2, 4, gl.FLOAT, false, 0, 0);
+    gl.enableVertexAttribArray(positionLoc2);
 
     let colorBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
@@ -273,8 +318,22 @@
     gl.bindBuffer(gl.ARRAY_BUFFER, nBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, flatten(normalArray), gl.STATIC_DRAW);
     let normalLoc = gl.getAttribLocation(program2, "normal");
-    gl.vertexAttribPointer(normalLoc,3,gl.FLOAT, false, 0, 0);
+    gl.vertexAttribPointer(normalLoc, 3, gl.FLOAT, false, 0, 0);
     gl.enableVertexAttribArray(normalLoc);
+
+    let bnBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, bnBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, flatten(binormalArray), gl.STATIC_DRAW);
+    let binormalLoc = gl.getAttribLocation(program2, "binormal");
+    gl.vertexAttribPointer(binormalLoc, 3, gl.FLOAT, false, 0, 0);
+    gl.enableVertexAttribArray(binormalLoc);
+
+    let tanBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, tanBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, flatten(tangentArray), gl.STATIC_DRAW);
+    let tangentLoc = gl.getAttribLocation(program2, "tangent");
+    gl.vertexAttribPointer(tangentLoc, 3, gl.FLOAT, false, 0, 0);
+    gl.enableVertexAttribArray(tangentLoc);
 
     ////////////////
     // DRAW
@@ -283,10 +342,10 @@
 
     // bindframebuffer
 
-    const lightAmbient = vec4(0.2,0.2,0.2,1.0);
-    const lightDiffuse = vec4(1.0,1.0,1.0,1.0);
-    const v3lightPosition = vec3(0.0,3.0,5.0);
-    const lightPosition = vec4(0.0,3.0,5,1.0);
+    const lightAmbient = vec4(0.2, 0.2, 0.2, 1.0);
+    const lightDiffuse = vec4(1.0, 1.0, 1.0, 1.0);
+    const v3lightPosition = vec3(0.0, 3.0, 5.0);
+    const lightPosition = vec4(0.0, 3.0, 5, 1.0);
 
     gl.useProgram(program);
     let l_modelViewProjectionMatrixLoc = gl.getUniformLocation(program, "mvpMatrix");
@@ -294,87 +353,93 @@
     gl.useProgram(program2);
     let modelMatrixLoc = gl.getUniformLocation(program2, "modelMatrix");
     let l_modelViewProjectionMatrixLoc2 = gl.getUniformLocation(program2, "l_mvpMatrix");
-    let camPostionLoc = gl.getUniformLocation(program2,'camPosition');
-    gl.uniform4fv(gl.getUniformLocation(program2,'diffuse'),lightDiffuse);
-    gl.uniform4fv(gl.getUniformLocation(program2,'ambient'),lightAmbient);
-    gl.uniform4fv(gl.getUniformLocation(program2,'lightPosition'),lightPosition);
+    let camPostionLoc = gl.getUniformLocation(program2, 'camPosition');
+    gl.uniform4fv(gl.getUniformLocation(program2, 'diffuse'), lightDiffuse);
+    gl.uniform4fv(gl.getUniformLocation(program2, 'ambient'), lightAmbient);
+    gl.uniform4fv(gl.getUniformLocation(program2, 'lightPosition'), lightPosition);
 
     let modelViewProjectionMatrixLoc = gl.getUniformLocation(program2, "mvpMatrix");
-    let i=0;
+    let i = 0;
 
     let framebuffer = gl.createFramebuffer();
-    gl.bindFramebuffer(gl.FRAMEBUFFER,framebuffer);
-    framebuffer.width= canvas.width;
-    framebuffer.height= canvas.height;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
+    framebuffer.width = canvas.width;
+    framebuffer.height = canvas.height;
 
-    let renderbuffer= gl.createRenderbuffer();
-    gl.bindRenderbuffer(gl.RENDERBUFFER,renderbuffer);
-    gl.renderbufferStorage(gl.RENDERBUFFER,gl.DEPTH_COMPONENT16,canvas.width,canvas.height);
-    gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,shadowmap,0);
-    gl.framebufferRenderbuffer(gl.FRAMEBUFFER,gl.DEPTH_ATTACHMENT,gl.RENDERBUFFER,renderbuffer);
+    let renderbuffer = gl.createRenderbuffer();
+    gl.bindRenderbuffer(gl.RENDERBUFFER, renderbuffer);
+    gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, canvas.width, canvas.height);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, shadowmap, 0);
+    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, renderbuffer);
 
 
-    let render = function (){
+    let render = function () {
         gl.clearColor(1.0, 1.0, 1.0, 1);
-        gl.bindFramebuffer(gl.FRAMEBUFFER,framebuffer);
-        gl.bindRenderbuffer(gl.RENDERBUFFER,renderbuffer);
-        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT );
+        gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
+        gl.bindRenderbuffer(gl.RENDERBUFFER, renderbuffer);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
         gl.useProgram(program);
 
-        eye=v3lightPosition;
-        up=vec3(0,1,0);
-        at=vec3(0,0,0);
-        i=(i+1) % 360;
-        let translatem = translate(0,0,-1);
-        let detranslatem= translate(0,0,0);
-        let modelmatrix = mult(detranslatem,mult(rotateY(i),translatem));
-        let viewMatrix = lookAt(eye,at,up);
-        let modelViewMatrix = mult(viewMatrix,modelmatrix);
-        let projectionMatrix = perspective(45,aspect,3,10);
-        let l_viewProjection = mult(projectionMatrix,viewMatrix);
-        let l_modelViewProjection = mult(projectionMatrix,modelViewMatrix);
-        gl.uniformMatrix4fv(l_modelViewProjectionMatrixLoc,false,flatten(l_modelViewProjection));
-        gl.drawArrays(gl.TRIANGLES,0,36);
-        gl.uniformMatrix4fv(l_modelViewProjectionMatrixLoc,false,flatten(l_viewProjection));
-        gl.drawArrays(gl.TRIANGLES,36,positionsArray.length);
+        eye = v3lightPosition;
+        up = vec3(0, 1, 0);
+        at = vec3(0, 0, 0);
+        i = (i + 1) % 360;
+        let translatem = translate(0, 0, -1);
+        let detranslatem = translate(0, 0, 0);
+        let modelmatrix = mult(detranslatem, mult(rotateY(i), translatem));
+        let viewMatrix = lookAt(eye, at, up);
+        let modelViewMatrix = mult(viewMatrix, modelmatrix);
+        let projectionMatrix = perspective(45, aspect, 3, 10);
+        let l_viewProjection = mult(projectionMatrix, viewMatrix);
+        let l_modelViewProjection = mult(projectionMatrix, modelViewMatrix);
+        gl.uniformMatrix4fv(l_modelViewProjectionMatrixLoc, false, flatten(l_modelViewProjection));
+        gl.drawArrays(gl.TRIANGLES, 0, 36);
+        gl.uniformMatrix4fv(l_modelViewProjectionMatrixLoc, false, flatten(l_viewProjection));
+        gl.drawArrays(gl.TRIANGLES, 36, positionsArray.length);
 
         //Segundo Passo de renderização
 
-        gl.bindFramebuffer(gl.FRAMEBUFFER,null);
-        gl.bindRenderbuffer(gl.RENDERBUFFER,null);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        gl.bindRenderbuffer(gl.RENDERBUFFER, null);
 
         gl.useProgram(program2);
         gl.activeTexture(gl.TEXTURE0);
-        gl.bindTexture(gl.TEXTURE_2D,shadowmap);
-        gl.uniform1i(gl.getUniformLocation(program2,"shadowMap"),0);
+        //gl.bindTexture(gl.TEXTURE_2D,shadowmap);
+        gl.uniform1i(gl.getUniformLocation(program2, "shadowMap"), 0);
 
         gl.activeTexture(gl.TEXTURE1);
-        gl.bindTexture(gl.TEXTURE_2D,texture);
-        gl.uniform1i(gl.getUniformLocation(program2,"textureMap"),1);
+        //gl.bindTexture(gl.TEXTURE_2D,texture);
+        gl.uniform1i(gl.getUniformLocation(program2, "textureMap"), 1);
+
+        gl.activeTexture(gl.TEXTURE2);
+        //gl.bindTexture(gl.TEXTURE_2D,texturebump);
+        gl.uniform1i(gl.getUniformLocation(program2, "bumpMap"), 2);
+
+
         gl.clearColor(0.5, 0.5, 0.5, 1);
-        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT );
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-        eye=vec3(7,1,3.5);
-        let eye4=vec4(7,1,3.5,1.0);
-        up=vec3(0,1,0);
-        at=vec3(0,0,0);
-        viewMatrix = lookAt(eye,at,up);
-        modelViewMatrix = mult(viewMatrix,modelmatrix);
-        projectionMatrix = perspective(45,aspect,3,10);
-        let viewProjection = mult(projectionMatrix,viewMatrix);
-        let modelViewProjection = mult(projectionMatrix,modelViewMatrix);
+        eye = vec3(7, 1, 3.5);
+        let eye4 = vec4(7, 1, 3.5, 1.0);
+        up = vec3(0, 1, 0);
+        at = vec3(0, 0, 0);
+        viewMatrix = lookAt(eye, at, up);
+        modelViewMatrix = mult(viewMatrix, modelmatrix);
+        projectionMatrix = perspective(45, aspect, 3, 10);
+        let viewProjection = mult(projectionMatrix, viewMatrix);
+        let modelViewProjection = mult(projectionMatrix, modelViewMatrix);
 
-        gl.uniform4fv(camPostionLoc,eye4);
-        gl.uniformMatrix4fv(modelMatrixLoc,false,flatten(modelmatrix));
-        gl.uniformMatrix4fv(modelViewProjectionMatrixLoc,false,flatten(modelViewProjection));
-        gl.uniformMatrix4fv(l_modelViewProjectionMatrixLoc2,false,flatten(l_modelViewProjection));
-        gl.drawArrays(gl.TRIANGLES,0,36);
+        gl.uniform4fv(camPostionLoc, eye4);
+        gl.uniformMatrix4fv(modelMatrixLoc, false, flatten(modelmatrix));
+        gl.uniformMatrix4fv(l_modelViewProjectionMatrixLoc2, false, flatten(l_modelViewProjection));
+        gl.uniformMatrix4fv(modelViewProjectionMatrixLoc, false, flatten(modelViewProjection));
+        gl.drawArrays(gl.TRIANGLES, 0, 36);
         modelmatrix = rotateY(0);
-        gl.uniformMatrix4fv(modelMatrixLoc,false,flatten(modelmatrix));
-        gl.uniformMatrix4fv(modelViewProjectionMatrixLoc,false,flatten(viewProjection));
-        gl.uniformMatrix4fv(l_modelViewProjectionMatrixLoc2,false,flatten(l_viewProjection));
-        gl.drawArrays(gl.TRIANGLES,36,positionsArray.length);
+        gl.uniformMatrix4fv(modelMatrixLoc, false, flatten(modelmatrix));
+        gl.uniformMatrix4fv(l_modelViewProjectionMatrixLoc2, false, flatten(l_viewProjection));
+        gl.uniformMatrix4fv(modelViewProjectionMatrixLoc, false, flatten(viewProjection));
+        gl.drawArrays(gl.TRIANGLES, 36, positionsArray.length);
 
 
         requestAnimationFrame(render);
@@ -400,8 +465,8 @@
         requestAnimationFrame(render2);
     } */
 
-    render ();
-
+    render();
+}
 </script>
 
 </body>
