@@ -3,14 +3,9 @@
 <script type="vertex" id="vs">
         #version 300 es
 
-        in vec4 position;
-        in vec4 color;
-        out vec4 vColor;
-        uniform mat4 mvpMatrix;
-
+       
         void main() {
-            vColor = color;
-            gl_Position = mvpMatrix*position ;
+            
         }
     </script>
 
@@ -18,11 +13,9 @@
         #version 300 es
         precision highp float;
 
-        in vec4 vColor;
-        out vec4 fragColor;
-
+        
         void main() {
-            fragColor = vColor;
+            
         }
     </script>
 
@@ -34,15 +27,12 @@
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
     let aspect= canvas.width/canvas.height;
-    let eye,at,up;
-    let modelViewProjection;
     let gl = canvas.getContext("webgl2");
     if (!gl) {
         console.error("WebGL 2 not available");
         document.body.innerHTML = "This example requires WebGL 2 which is unavailable on this system."
     }
     gl.clearColor(0, 0, 0, 1);
-
     gl.enable(gl.DEPTH_TEST);
 
     let vsSource = document.getElementById("vs").text.trim();
@@ -69,97 +59,13 @@
     gl.useProgram(program);
 
 
-    let vertices=[
-        vec4(-0.5, -0.5,  1.5, 1.0),
-        vec4(-0.5,  0.5,  1.5, 1.0),
-        vec4(0.5,  0.5,  1.5, 1.0),
-        vec4(0.5, -0.5,  1.5, 1.0),
-        vec4(-0.5, -0.5, 0.5, 1.0),
-        vec4(-0.5,  0.5, 0.5, 1.0),
-        vec4(0.5,  0.5, 0.5, 1.0),
-        vec4( 0.5, -0.5, 0.5, 1.0)
-    ]
-    let positionsArray = [];
-    let colorsArray = [];
-
-    function quad(a, b, c, d) {
-        positionsArray.push(vertices[a]);
-        colorsArray.push(vertexColors[a]);
-        positionsArray.push(vertices[b]);
-        colorsArray.push(vertexColors[a]);
-        positionsArray.push(vertices[c]);
-        colorsArray.push(vertexColors[a]);
-        //segundo
-        positionsArray.push(vertices[a]);
-        colorsArray.push(vertexColors[a]);
-        positionsArray.push(vertices[c]);
-        colorsArray.push(vertexColors[a]);
-        positionsArray.push(vertices[d]);
-        colorsArray.push(vertexColors[a]);
-    }
-
-    let vertexColors = [
-        vec4(0.5, 0.5, 0.5, 1.0),  // black
-        vec4(1.0, 0.0, 0.0, 1.0),  // red
-        vec4(1.0, 1.0, 0.0, 1.0),  // yellow
-        vec4(0.0, 1.0, 0.0, 1.0),  // green
-        vec4(0.0, 0.0, 1.0, 1.0),  // blue
-        vec4(1.0, 0.0, 1.0, 1.0),  // magenta
-        vec4(0.0, 1.0, 1.0, 1.0),  // cyan
-        vec4(1.0, 1.0, 1.0, 1.0),  // white
-    ];
-
-    function colorCube()
-    {
-        quad(1, 0, 3, 2);
-        quad(2, 3, 7, 6);
-        quad(0, 4, 7, 3);
-        quad(2, 6, 5, 1);
-        quad(6, 7, 4, 5);
-        quad(5, 4, 0, 1);
-    }
-
-    colorCube();
-
-    let positionBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, flatten(positionsArray), gl.STATIC_DRAW);
-    let positionLoc = gl.getAttribLocation( program, "position");
-    gl.vertexAttribPointer(positionLoc, 4, gl.FLOAT, false, 0, 0);
-    gl.enableVertexAttribArray(positionLoc);
-
-
-    let colorBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, flatten(colorsArray), gl.STATIC_DRAW);
-    let colorLoc = gl.getAttribLocation(program, "color");
-    gl.vertexAttribPointer(colorLoc, 4, gl.FLOAT, false, 0, 0);
-    gl.enableVertexAttribArray(colorLoc);
-
-
-
     ////////////////
     // DRAW
     ////////////////
     //gl.clear(gl.COLOR_BUFFER_BIT);
 
-    let modelViewProjectionMatrixLoc = gl.getUniformLocation(program, "mvpMatrix");
-    let i=0;
-
     let render = function (){
-        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT );
-        eye=vec3(0,0,3.5);
-        up=vec3(0,1,0);
-        at=vec3(0,0,0);
-        i=(i+1) % 360;
-        let translatem = translate(0,0,-1);
-        let detranslatem= translate(0,0,1);
-        let worldmatrix = mult(detranslatem,mult(rotateY(i),translatem));
-        let modelViewMatrix = mult(lookAt(eye,at,up),worldmatrix);
-        let projectionMatrix = perspective(45,aspect,0.5,7.5);
-        let modelViewProjection = mult(projectionMatrix,modelViewMatrix);
-        gl.uniformMatrix4fv(modelViewProjectionMatrixLoc,false,flatten(modelViewProjection));
-        gl.drawArrays(gl.TRIANGLES,0,positionsArray.length);
+
         requestAnimationFrame(render);
     }
 
