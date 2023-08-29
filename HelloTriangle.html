@@ -64,48 +64,24 @@
 
     //1. Defirnir os arrays de vertices
     let vertex = [
-        vec4(-1,-1,1,1), //0
-        vec4(-1,1,1,1),//1
-        vec4(1,1,1,1),//2
-        vec4(1,-1,1,1),//3
-        vec4(-1,-1,-1,1),//4
-        vec4(-1,1,-1,1),//5
-        vec4(1,1,-1,1),//6
-        vec4(1,-1,-1,1),//7
+        vec4(0,1,0,1),
+        vec4(1,0,0,1),
+        vec4(-1,0,0,1)
     ];
     let vertexColors = [
         vec4(0,1,0,1),
         vec4(1,0,0,1),
-        vec4(0,0,1,1),
-        vec4(1,1,1,1),
-        vec4(1,1,0,1),
-        vec4(0,1,1,1),
-        vec4(1,0,1,1),
-        vec4(0.5,0.5,0.5,1),
+        vec4(0,0,1,1)
     ]
-
-
     //inserir os vertices que serão desenhados como trinangulos
     let positionArray =[];
     let colorsArray =[];
-
-    function  quad(a,b,c,d){
-        positionArray.push(vertex[a]);
-        positionArray.push(vertex[b]);
-        positionArray.push(vertex[c]);
-        colorsArray.push(vertexColors[a]);
-        colorsArray.push(vertexColors[b]);
-        colorsArray.push(vertexColors[c]);
-
-        positionArray.push(vertex[a]);
-        positionArray.push(vertex[c]);
-        positionArray.push(vertex[d]);
-        colorsArray.push(vertexColors[a]);
-        colorsArray.push(vertexColors[c]);
-        colorsArray.push(vertexColors[d]);
-    }
-    quad(0,1,2,3);
-
+    positionArray.push(vertex[0]);
+    positionArray.push(vertex[1]);
+    positionArray.push(vertex[2]);
+    colorsArray.push(vertexColors[0]);
+    colorsArray.push(vertexColors[1]);
+    colorsArray.push(vertexColors[2]);
 
     //3. Copiar para GPU
     let positionBuffer = gl.createBuffer();
@@ -125,21 +101,16 @@
     ////////////////
     // DRAW
     ////////////////
-    let eye= vec3(0,0,5), target=vec3(0,0.0,0),
+    let eye= vec3(0,0,3), target=vec3(0,0.5,0),
         up = vec3(0,1,0) ;
     let viewMatrix= lookAt(eye,target,up);
-    let projectionMatrix = perspective(45,aspect,1,20)
-    let viewProjection= mult(projectionMatrix,viewMatrix);
+    let projectionMatrix = perspective(45,aspect,1,4)
+    let mvp= mult(projectionMatrix,viewMatrix);
     let mvpMatrixLoc= gl.getUniformLocation(program,"mvpMatrix");
-    let i=0;
+    gl.uniformMatrix4fv(mvpMatrixLoc,false,flatten(mvp));
     let render = function (){
-        i = (i+1) % 360;
-        let modelMatrix = rotateY(i);
-        let mvp= mult(viewProjection,modelMatrix);
-        gl.uniformMatrix4fv(mvpMatrixLoc,false,flatten(mvp));
         gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
-        gl.drawArrays(gl.TRIANGLES,0,12);
-
+        gl.drawArrays(gl.TRIANGLES,0,3);
         requestAnimationFrame(render);
     }
 
