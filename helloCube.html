@@ -2,20 +2,24 @@
 <body>
 <script type="vertex" id="vs">
         #version 300 es
+        in vec4 position;
+        in vec4 color;
+        uniform mat4  mvpMatrix;
+        out vec4 vColor;
 
-       
         void main() {
-            
+            vColor = color;
+            gl_Position = mvpMatrix*position;
         }
     </script>
 
 <script type="fragment" id="fs">
         #version 300 es
         precision highp float;
-
-        
+        in vec4 vColor;
+        out vec4 fragColor;
         void main() {
-            
+            fragColor=vColor;
         }
     </script>
 
@@ -58,14 +62,55 @@
     }
     gl.useProgram(program);
 
+    //1. Defirnir os arrays de vertices
+    let vertex = [
+        vec4(0,1,0,1),
+        vec4(1,0,0,1),
+        vec4(-1,0,0,1)
+    ];
+    let vertexColors = [
+        vec4(0,1,0,1),
+        vec4(1,0,0,1),
+        vec4(0,0,1,1)
+    ]
+    //inserir os vertices que serão desenhados como trinangulos
+    let positionArray =[];
+    let colorsArray =[];
+    positionArray.push(vertex[0]);
+    positionArray.push(vertex[1]);
+    positionArray.push(vertex[2]);
+    colorsArray.push(vertexColors[0]);
+    colorsArray.push(vertexColors[1]);
+    colorsArray.push(vertexColors[2]);
+
+    //3. Copiar para GPU
+    let positionBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER,positionBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER,flatten(positionArray),gl.STATIC_DRAW);
+    let positionLoc = gl.getAttribLocation(program,"position");
+    gl.vertexAttribPointer(positionLoc,4,gl.FLOAT,false,0,0);
+    gl.enableVertexAttribArray(positionLoc);
+
+    let colorBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER,colorBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER,flatten(colorsArray),gl.STATIC_DRAW);
+    let colorLoc = gl.getAttribLocation(program,"color");
+    gl.vertexAttribPointer(colorLoc,4,gl.FLOAT,false,0,0);
+    gl.enableVertexAttribArray(colorLoc);
 
     ////////////////
     // DRAW
     ////////////////
-    //gl.clear(gl.COLOR_BUFFER_BIT);
-
+    let eye= vec3(0,0,3), target=vec3(0,0.5,0),
+        up = vec3(0,1,0) ;
+    let viewMatrix= lookAt(eye,target,up);
+    let projectionMatrix = perspective(45,aspect,1,4)
+    let mvp= mult(projectionMatrix,viewMatrix);
+    let mvpMatrixLoc= gl.getUniformLocation(program,"mvpMatrix");
+    gl.uniformMatrix4fv(mvpMatrixLoc,false,flatten(mvp));
     let render = function (){
-
+        gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+        gl.drawArrays(gl.TRIANGLES,0,3);
         requestAnimationFrame(render);
     }
 
