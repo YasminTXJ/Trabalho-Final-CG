@@ -27,8 +27,11 @@
         uniform sampler2D textureMap;
 
         void main() {
-            //fragColor=vColor;
-            fragColor = texture (textureMap,ftexCoord);
+            vec4 tex = texture(textureMap,ftexCoord);
+            vec4 cor;
+            cor.rgb=  tex.rgb* tex.a + fColor.rgb*(1.0-tex.a);
+            cor.a=1.0;
+            fragColor = cor  ;
         }
     </script>
 
@@ -79,10 +82,18 @@
     let texture = gl.createTexture();
     gl.activeTexture(gl.texture0);
     gl.bindTexture(gl.TEXTURE_2D,texture);
-    gl.texImage2D(gl.TEXTURE_2D,0,gl.RGB,gl.RGB,gl.UNSIGNED_BYTE,image)
+    gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,image)
     gl.generateMipmap(gl.TEXTURE_2D);
     gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);
+    const ext =
+        gl.getExtension("EXT_texture_filter_anisotropic") ||
+        gl.getExtension("MOZ_EXT_texture_filter_anisotropic") ||
+        gl.getExtension("WEBKIT_EXT_texture_filter_anisotropic");
+    if (ext) {
+        const max = gl.getParameter(ext.MAX_TEXTURE_MAX_ANISOTROPY_EXT);
+        gl.texParameterf(gl.TEXTURE_2D, ext.TEXTURE_MAX_ANISOTROPY_EXT, max);
+    }
     gl.uniform1i(gl.getUniformLocation(program,"textureMap"),0) ; //mudar de 0 para +1 caso adicionar outra textura
 
 
@@ -111,9 +122,9 @@
 
     let texCoord = [
         vec2 (0,0),
-        vec2 (0,1),
-        vec2 (1,1),
-        vec2 (1,0)
+        vec2 (0,2),
+        vec2 (2,2),
+        vec2 (2,0)
     ]
 
 
@@ -144,7 +155,11 @@
         texCoordArray.push(texCoord[3]);
     }
     quad(0,1,2,3);
-
+    quad(3,2,6,7);
+    quad(7,6,5,4);
+    quad(4,5,1,0);
+    quad(1,5,6,2);
+    quad(4,0,3,7);
 
     //3. Copiar para GPU
     let positionBuffer = gl.createBuffer();
@@ -180,12 +195,12 @@
     let mvpMatrixLoc= gl.getUniformLocation(program,"mvpMatrix");
     let i=0;
     let render = function (){
-        i = (i+1) % 360;
-        let modelMatrix = rotateY(i);
+        i = (i+0.1) % 360;
+        let modelMatrix = mult(rotateX(i) ,rotateY(i));
         let mvp= mult(viewProjection,modelMatrix);
         gl.uniformMatrix4fv(mvpMatrixLoc,false,flatten(mvp));
         gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
-        gl.drawArrays(gl.TRIANGLES,0,12);
+        gl.drawArrays(gl.TRIANGLES,0,positionArray.length);
 
         requestAnimationFrame(render);
     }
