@@ -10,10 +10,12 @@
         uniform mat4 mMatrix;
         uniform mat4 vpMatrix;
 
+
         out vec4 fColor;
         out vec2 ftexCoord;
         out vec4 ipnormal;
         out vec4 pos3D;
+
 
         void main() {
             fColor = color;
@@ -37,13 +39,17 @@
         uniform vec4 ambient;
         uniform vec4 diffuse;
         uniform sampler2D textureMap;
+        uniform vec4 camPosition;
 
         out vec4 fragColor;
         void main() {
             vec4 texColor = texture(textureMap,ftexCoord);
             vec3  lightDir = normalize ( pos3D.xyz - lightPosition.xyz );
             float diffusefactor= max(0.0,dot(lightDir, normalize(ipnormal.xyz)));
-            fragColor = texColor*(ambient + diffusefactor) * diffuse;
+            vec3  reflected = reflect ( lightDir, normalize(ipnormal.xyz));
+            vec4  viewDir= normalize ( camPosition - pos3D);
+            float specularfactor = pow(max(0.0,dot(reflected, normalize(viewDir.xyz))),1.0);
+            fragColor = texColor*(ambient + diffusefactor +specularfactor) * diffuse;
             fragColor.a=1.0;
         }
     </script>
@@ -239,6 +245,9 @@
     let viewProjection= mult(projectionMatrix,viewMatrix);
     let vpMatrixLoc= gl.getUniformLocation(program,"vpMatrix");
     let mMatrixLoc= gl.getUniformLocation(program,"mMatrix");
+    let camPosloc = gl.getUniformLocation(program,"camPosition");
+    let eye4 = vec4(eye[0],eye[1],eye[2],1);
+    gl.uniform4fv(camPosloc,eye4);
     let i=0;
     let render = function (){
         i = (i+0.1) % 360;
