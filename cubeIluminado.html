@@ -42,8 +42,8 @@
         void main() {
             vec4 texColor = texture(textureMap,ftexCoord);
             vec3  lightDir = normalize ( pos3D.xyz - lightPosition.xyz );
-            float diffusefactor= dot(lightDir, normalize(ipnormal.xyz));
-            fragColor = texColor*(ambient +diffusefactor);
+            float diffusefactor= max(0.0,dot(lightDir, normalize(ipnormal.xyz)));
+            fragColor = texColor*(ambient + diffusefactor) * diffuse;
             fragColor.a=1.0;
         }
     </script>
@@ -222,7 +222,7 @@
     //Luz
     const lightPosition = vec4(0.0,0.0,2.5,1.0);
     const lightAmbient = vec4(0.2,0.2,0.2,1);
-    const lightDiffuse = vec4 (0.9,0.9,0.9,1.0);
+    const lightDiffuse = vec4 (1,1,1,1.0);
 
     gl.uniform4fv(gl.getUniformLocation(program,'lightPosition'),lightPosition);
     gl.uniform4fv(gl.getUniformLocation(program,'ambient'),lightAmbient);
