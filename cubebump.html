@@ -6,6 +6,8 @@
         in vec4 color;
         in vec2 texCoord;
         in vec3 normal;
+        in vec3 tangent;
+        in vec3 binormal;
 
         uniform mat4 mMatrix;
         uniform mat4 vpMatrix;
@@ -14,6 +16,8 @@
         out vec4 fColor;
         out vec2 ftexCoord;
         out vec4 ipnormal;
+        out vec4 ipbinormal;
+        out vec4 iptangent;
         out vec4 pos3D;
 
 
@@ -21,6 +25,8 @@
             fColor = color;
             ftexCoord = texCoord;
             ipnormal = mMatrix*vec4(normal,0);
+            ipbinormal = mMatrix*vec4(binormal,0);
+            iptangent = mMatrix*vec4(tangent,0);
             pos3D= mMatrix*position;
             mat4 mvpMatrix = vpMatrix*mMatrix;
             gl_Position = mvpMatrix*position;
@@ -33,20 +39,29 @@
         in vec4 fColor;
         in vec2 ftexCoord;
         in vec4 ipnormal;
+        in vec4 ipbinormal;
+        in vec4 iptangent;
         in vec4 pos3D;
 
         uniform vec4 lightPosition;
         uniform vec4 ambient;
         uniform vec4 diffuse;
         uniform sampler2D textureMap;
+        uniform sampler2D bumpMap;
         uniform vec4 camPosition;
 
         out vec4 fragColor;
         void main() {
             vec4 texColor = texture(textureMap,ftexCoord);
+            vec4 bumpColor = texture(bumpMap,ftexCoord);
+            vec3 bumpNormal = 2.0*bumpColor.xyz -1.0;
+            mat3 TBN = mat3(normalize(iptangent.xyz),
+                            normalize(ipbinormal.xyz),
+                            normalize(ipnormal.xyz));
+            vec3 truenormal= normalize(TBN*bumpNormal);
             vec3  lightDir = normalize ( pos3D.xyz - lightPosition.xyz );
-            float diffusefactor= max(0.0,dot(lightDir, normalize(ipnormal.xyz)));
-            vec3  reflected = reflect ( lightDir, normalize(ipnormal.xyz));
+            float diffusefactor= max(0.0,dot(lightDir, normalize(truenormal.xyz)));
+            vec3  reflected = reflect ( lightDir, normalize(truenormal.xyz));
             vec4  viewDir= normalize ( camPosition - pos3D);
             float specularfactor = pow(max(0.0,dot(reflected, normalize(viewDir.xyz))),1.0);
             fragColor = texColor*(ambient + diffusefactor +specularfactor) * diffuse;
@@ -57,10 +72,9 @@
 
 <canvas id="webgl-canvas"></canvas>
 <script type="text/javascript" src="Common/MV.js"></script>
-<img id="texImage" src="logo.png" hidden  alt="blbla"/>
+<img id="texImage" src="stone01.png" hidden  alt="blbla"/>
+<img id="bumpImage" src="bump01.png" hidden  alt="blbla"/>
 <script>
-
-
     let canvas = document.getElementById("webgl-canvas");
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
@@ -101,21 +115,23 @@
     //Textura
     let image = document.getElementById("texImage");
     let texture = gl.createTexture();
-    gl.activeTexture(gl.texture0);
+    gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D,texture);
     gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,image)
     gl.generateMipmap(gl.TEXTURE_2D);
     gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);
-    const ext =
-        gl.getExtension("EXT_texture_filter_anisotropic") ||
-        gl.getExtension("MOZ_EXT_texture_filter_anisotropic") ||
-        gl.getExtension("WEBKIT_EXT_texture_filter_anisotropic");
-    if (ext) {
-        const max = gl.getParameter(ext.MAX_TEXTURE_MAX_ANISOTROPY_EXT);
-        gl.texParameterf(gl.TEXTURE_2D, ext.TEXTURE_MAX_ANISOTROPY_EXT, max);
-    }
     gl.uniform1i(gl.getUniformLocation(program,"textureMap"),0) ; //mudar de 0 para +1 caso adicionar outra textura
+
+    let bump = document.getElementById("bumpImage");
+    let bumpTexture = gl.createTexture();
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D,bumpTexture);
+    gl.texImage2D(gl.TEXTURE_2D,0,gl.RGB,gl.RGB,gl.UNSIGNED_BYTE,bump)
+    gl.generateMipmap(gl.TEXTURE_2D);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);
+    gl.uniform1i(gl.getUniformLocation(program,"bumpMap"),1) ; //mudar de 0 para +1 caso adicionar outra textura
 
 
 
@@ -154,6 +170,8 @@
     let colorsArray =[];
     let texCoordArray =[];
     let normalArray =[];
+    let binormalArray =[];
+    let tangentArray =[];
 
     function  quad(a,b,c,d){
         let tangent= normalize(subtract(vertex[b],vertex[a]),true);
@@ -174,6 +192,12 @@
         normalArray.push(normal);
         normalArray.push(normal);
         normalArray.push(normal);
+        binormalArray.push(binormal);
+        binormalArray.push(binormal);
+        binormalArray.push(binormal);
+        tangentArray.push(tangent);
+        tangentArray.push(tangent);
+        tangentArray.push(tangent);
 
         //segundo triangulo
         positionArray.push(vertex[a]);
@@ -188,6 +212,12 @@
         normalArray.push(normal);
         normalArray.push(normal);
         normalArray.push(normal);
+        binormalArray.push(binormal);
+        binormalArray.push(binormal);
+        binormalArray.push(binormal);
+        tangentArray.push(tangent);
+        tangentArray.push(tangent);
+        tangentArray.push(tangent);
     }
     quad(0,1,2,3);
     quad(3,2,6,7);
@@ -226,6 +256,19 @@
     gl.vertexAttribPointer(normalLoc,3,gl.FLOAT,false,0,0);
     gl.enableVertexAttribArray(normalLoc);
 
+    let binormalBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER,binormalBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER,flatten(binormalArray),gl.STATIC_DRAW);
+    let binormalLoc = gl.getAttribLocation(program,"binormal");
+    gl.vertexAttribPointer(binormalLoc,3,gl.FLOAT,false,0,0);
+    gl.enableVertexAttribArray(binormalLoc);
+
+    let tangentBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER,tangentBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER,flatten(tangentArray),gl.STATIC_DRAW);
+    let tangentLoc = gl.getAttribLocation(program,"tangent");
+    gl.vertexAttribPointer(tangentLoc,3,gl.FLOAT,false,0,0);
+    gl.enableVertexAttribArray(tangentLoc);
 
     //Luz
     const lightPosition = vec4(0.0,0.0,2.5,1.0);
