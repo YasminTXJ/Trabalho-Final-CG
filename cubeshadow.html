@@ -77,14 +77,14 @@
 
         out vec4 fragColor;
         void main() {
-            vec4 texColor = texture(textureMap,ftexCoord);
+            vec4 texColor = texture(shadowMap,ftexCoord);
             vec4 bumpColor = texture(bumpMap,ftexCoord);
             vec3 bumpNormal = 2.0*bumpColor.xyz -1.0;
 
             vec3 shadowcoord = 0.5*lposition.zyz/lposition.w +0.5;
             float depth = texture(shadowMap,shadowcoord.xy).r;
 
-            if (  shadowcoord.z -0.003 <= depth){
+            if (  shadowcoord.z <= depth){
             mat3 TBN = mat3(normalize(iptangent.xyz),
                             normalize(ipbinormal.xyz),
                             normalize(ipnormal.xyz));
@@ -108,6 +108,7 @@
 <script type="text/javascript" src="Common/initShaders.js"></script>
 <img id="texImage" src="stone01.png" hidden  alt="blbla"/>
 <img id="bumpImage" src="bump01.png" hidden  alt="blbla"/>
+
 <script>
 window.onload = () => {
     let canvas = document.getElementById("webgl-canvas");
@@ -133,7 +134,7 @@ gl.useProgram(sprogram);
 let shadowmap = gl.createTexture();
 gl.activeTexture(gl.TEXTURE0);
 gl.bindTexture(gl.TEXTURE_2D, shadowmap);
-gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA,1024,1024,0, gl.UNSIGNED_BYTE, null);
+gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA,1024,1024,0,gl.RGBA, gl.UNSIGNED_BYTE, null);
 gl.generateMipmap(gl.TEXTURE_2D);
 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
@@ -424,9 +425,8 @@ let render = function () {
     gl.uniformMatrix4fv(lvpMatrixLoc, false, flatten(mult(lviewProjection,modelMatrix)));
     gl.drawArrays(gl.TRIANGLES, 0, 36);
     modelMatrix = rotateZ(0);
-    gl.uniformMatrix4fv(lvpMatrixLoc, false, flatten(lviewProjection));
-    gl.uniformMatrix4fv(vpMatrixLoc, false, flatten(viewProjection));
     gl.uniformMatrix4fv(mMatrixLoc, false, flatten(modelMatrix));
+    gl.uniformMatrix4fv(lvpMatrixLoc, false, flatten(lviewProjection));
     gl.drawArrays(gl.TRIANGLES, 36, 6);
 
     requestAnimationFrame(render);
