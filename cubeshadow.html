@@ -84,7 +84,7 @@
             vec3 shadowcoord = 0.5*lposition.zyz/lposition.w +0.5;
             float depth = texture(shadowMap,shadowcoord.xy).r;
 
-            if (  shadowcoord.z <= depth){
+            if (  shadowcoord.z -0.003 <= depth){
             mat3 TBN = mat3(normalize(iptangent.xyz),
                             normalize(ipbinormal.xyz),
                             normalize(ipnormal.xyz));
@@ -139,7 +139,6 @@ gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-gl.uniform1i(gl.getUniformLocation(program, "textureMap"), 0); //mudar de 0 para +1 caso adicionar outra textura
 
 
 
@@ -153,7 +152,7 @@ gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image)
 gl.generateMipmap(gl.TEXTURE_2D);
 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-gl.uniform1i(gl.getUniformLocation(program, "textureMap"), 1); //mudar de 0 para +1 caso adicionar outra textura
+
 
 let bump = document.getElementById("bumpImage");
 let bumpTexture = gl.createTexture();
@@ -163,7 +162,7 @@ gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, bump)
 gl.generateMipmap(gl.TEXTURE_2D);
 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-gl.uniform1i(gl.getUniformLocation(program, "bumpMap"), 2); //mudar de 0 para +1 caso adicionar outra textura
+
 
 
 //1. Defirnir os arrays de vertices
@@ -346,7 +345,7 @@ gl.vertexAttribPointer(tangentLoc, 3, gl.FLOAT, false, 0, 0);
 gl.enableVertexAttribArray(tangentLoc);
 
 //Luz
-const lightPosition = vec4(0.0, 0.0, 2.5, 1.0);
+const lightPosition = vec4(0.0, 0.0, 5.5, 1.0);
 const lightAmbient = vec4(0.2, 0.2, 0.2, 1);
 const lightDiffuse = vec4(1, 1, 1, 1.0);
 
@@ -423,10 +422,10 @@ let render = function () {
     gl.uniformMatrix4fv(mMatrixLoc, false, flatten(modelMatrix));
     gl.uniformMatrix4fv(vpMatrixLoc, false, flatten(viewProjection));
     gl.uniformMatrix4fv(lvpMatrixLoc, false, flatten(mult(lviewProjection,modelMatrix)));
-    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     gl.drawArrays(gl.TRIANGLES, 0, 36);
     modelMatrix = rotateZ(0);
     gl.uniformMatrix4fv(lvpMatrixLoc, false, flatten(lviewProjection));
+    gl.uniformMatrix4fv(vpMatrixLoc, false, flatten(viewProjection));
     gl.uniformMatrix4fv(mMatrixLoc, false, flatten(modelMatrix));
     gl.drawArrays(gl.TRIANGLES, 36, 6);
 
