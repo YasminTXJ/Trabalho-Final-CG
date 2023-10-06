@@ -1,5 +1,26 @@
 <html>
 <body>
+
+<script type="vertex" id="svs">
+        #version 300 es
+        in vec4 position;
+
+        uniform mat4 mvpMatrix;
+
+        void main() {
+            gl_Position = mvpMatrix*position;
+        }
+    </script>
+
+<script type="fragment" id="sfs">
+        #version 300 es
+        precision highp float;
+        out vec4 fragColor;
+        void main() {
+            fragColor= vec4(gl_FragCoord.z,gl_FragCoord.z,gl_FragCoord.z,1.0);
+        }
+    </script>
+
 <script type="vertex" id="vs">
         #version 300 es
         in vec4 position;
@@ -11,6 +32,7 @@
 
         uniform mat4 mMatrix;
         uniform mat4 vpMatrix;
+        uniform mat4 lvpMatrix;
 
 
         out vec4 fColor;
@@ -19,7 +41,7 @@
         out vec4 ipbinormal;
         out vec4 iptangent;
         out vec4 pos3D;
-
+        out vec4 lposition;
 
         void main() {
             fColor = color;
@@ -29,6 +51,7 @@
             iptangent = mMatrix*vec4(tangent,0);
             pos3D= mMatrix*position;
             mat4 mvpMatrix = vpMatrix*mMatrix;
+            lposition =  lvpMatrix *position;
             gl_Position = mvpMatrix*position;
         }
     </script>
@@ -42,10 +65,12 @@
         in vec4 ipbinormal;
         in vec4 iptangent;
         in vec4 pos3D;
+        in vec4 lposition;
 
         uniform vec4 lightPosition;
         uniform vec4 ambient;
         uniform vec4 diffuse;
+        uniform sampler2D shadowMap;
         uniform sampler2D textureMap;
         uniform sampler2D bumpMap;
         uniform vec4 camPosition;
@@ -55,6 +80,11 @@
             vec4 texColor = texture(textureMap,ftexCoord);
             vec4 bumpColor = texture(bumpMap,ftexCoord);
             vec3 bumpNormal = 2.0*bumpColor.xyz -1.0;
+
+            vec3 shadowcoord = 0.5*lposition.zyz/lposition.w +0.5;
+            float depth = texture(shadowMap,shadowcoord.xy).r;
+
+            if (  shadowcoord.z <= depth){
             mat3 TBN = mat3(normalize(iptangent.xyz),
                             normalize(ipbinormal.xyz),
                             normalize(ipnormal.xyz));
@@ -65,289 +95,346 @@
             vec4  viewDir= normalize ( camPosition - pos3D);
             float specularfactor = pow(max(0.0,dot(reflected, normalize(viewDir.xyz))),1.0);
             fragColor = texColor*(ambient + diffusefactor +specularfactor) * diffuse;
+            } else{
+              fragColor = texColor*ambient;
+            }
             fragColor.a=1.0;
         }
     </script>
 
 
-<canvas id="webgl-canvas"></canvas>
+<canvas id="webgl-canvas" width="1024" height="1024" ></canvas>
 <script type="text/javascript" src="Common/MV.js"></script>
+<script type="text/javascript" src="Common/initShaders.js"></script>
 <img id="texImage" src="stone01.png" hidden  alt="blbla"/>
 <img id="bumpImage" src="bump01.png" hidden  alt="blbla"/>
 <script>
+window.onload = () => {
     let canvas = document.getElementById("webgl-canvas");
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
-    let aspect= canvas.width/canvas.height;
+    let aspect = canvas.width / canvas.height;
     let gl = canvas.getContext("webgl2");
-    if (!gl) {
-        console.error("WebGL 2 not available");
-        document.body.innerHTML = "This example requires WebGL 2 which is unavailable on this system."
-    }
-    gl.clearColor(0, 0, 0, 1);
-    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,true);
-    gl.enable(gl.DEPTH_TEST);
+    if(
+!gl
+)
+{
+    console.error("WebGL 2 not available");
+    document.body.innerHTML = "This example requires WebGL 2 which is unavailable on this system."
+}
+gl.clearColor(0, 0, 0, 1);
+gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+gl.enable(gl.DEPTH_TEST);
+
+let sprogram = initShaders(gl,"svs","sfs");
+let program = initShaders(gl,"vs","fs");
+
+gl.useProgram(sprogram);
+let shadowmap = gl.createTexture();
+gl.activeTexture(gl.TEXTURE0);
+gl.bindTexture(gl.TEXTURE_2D, shadowmap);
+gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA,1024,1024,0, gl.UNSIGNED_BYTE, null);
+gl.generateMipmap(gl.TEXTURE_2D);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+gl.uniform1i(gl.getUniformLocation(program, "textureMap"), 0); //mudar de 0 para +1 caso adicionar outra textura
 
 
-    let vsSource = document.getElementById("vs").text.trim();
-    let fsSource = document.getElementById("fs").text.trim();
-    let vertexShader = gl.createShader(gl.VERTEX_SHADER);
-    gl.shaderSource(vertexShader, vsSource);
-    gl.compileShader(vertexShader);
-    if (!gl.getShaderParameter(vertexShader, gl.COMPILE_STATUS)) {
-        console.error(gl.getShaderInfoLog(vertexShader));
-    }
-    let fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
-    gl.shaderSource(fragmentShader, fsSource);
-    gl.compileShader(fragmentShader);
-    if (!gl.getShaderParameter(fragmentShader, gl.COMPILE_STATUS)) {
-        console.error(gl.getShaderInfoLog(fragmentShader));
-    }
-    let program = gl.createProgram();
-    gl.attachShader(program, vertexShader);
-    gl.attachShader(program, fragmentShader);
-    gl.linkProgram(program);
-    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-        console.error(gl.getProgramInfoLog(program));
-    }
+
+gl.useProgram(program);
+//Textura
+let image = document.getElementById("texImage");
+let texture = gl.createTexture();
+gl.activeTexture(gl.TEXTURE1);
+gl.bindTexture(gl.TEXTURE_2D, texture);
+gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image)
+gl.generateMipmap(gl.TEXTURE_2D);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+gl.uniform1i(gl.getUniformLocation(program, "textureMap"), 1); //mudar de 0 para +1 caso adicionar outra textura
+
+let bump = document.getElementById("bumpImage");
+let bumpTexture = gl.createTexture();
+gl.activeTexture(gl.TEXTURE2);
+gl.bindTexture(gl.TEXTURE_2D, bumpTexture);
+gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, bump)
+gl.generateMipmap(gl.TEXTURE_2D);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+gl.uniform1i(gl.getUniformLocation(program, "bumpMap"), 2); //mudar de 0 para +1 caso adicionar outra textura
+
+
+//1. Defirnir os arrays de vertices
+let vertex = [
+    vec4(-1, -1, 1, 1), //0
+    vec4(-1, 1, 1, 1),//1
+    vec4(1, 1, 1, 1),//2
+    vec4(1, -1, 1, 1),//3
+    vec4(-1, -1, -1, 1),//4
+    vec4(-1, 1, -1, 1),//5
+    vec4(1, 1, -1, 1),//6
+    vec4(1, -1, -1, 1),//7
+];
+let vertexColors = [
+    vec4(0, 1, 0, 1),
+    vec4(1, 0, 0, 1),
+    vec4(0, 0, 1, 1),
+    vec4(1, 1, 1, 1),
+    vec4(1, 1, 0, 1),
+    vec4(0, 1, 1, 1),
+    vec4(1, 0, 1, 1),
+    vec4(0.5, 0.5, 0.5, 1),
+]
+
+let texCoord = [
+    vec2(0, 0),
+    vec2(0, 2),
+    vec2(2, 2),
+    vec2(2, 0)
+]
+
+
+//inserir os vertices que serão desenhados como trinangulos
+let positionArray = [];
+let colorsArray = [];
+let texCoordArray = [];
+let normalArray = [];
+let binormalArray = [];
+let tangentArray = [];
+
+function quad(a, b, c, d) {
+    let tangent = normalize(subtract(vertex[b], vertex[a]), true);
+    let binormal = normalize(subtract(vertex[c], vertex[b]), true);
+    let normal = cross(tangent, binormal);
+    binormal = vec3(binormal[0], binormal[1], binormal[2]);
+    tangent = vec3(tangent[0], tangent[1], tangent[2]);
+    //primeiro triangulo
+    positionArray.push(vertex[a]);
+    positionArray.push(vertex[b]);
+    positionArray.push(vertex[c]);
+    colorsArray.push(vertexColors[a]);
+    colorsArray.push(vertexColors[b]);
+    colorsArray.push(vertexColors[c]);
+    texCoordArray.push(texCoord[0]);
+    texCoordArray.push(texCoord[1]);
+    texCoordArray.push(texCoord[2]);
+    normalArray.push(normal);
+    normalArray.push(normal);
+    normalArray.push(normal);
+    binormalArray.push(binormal);
+    binormalArray.push(binormal);
+    binormalArray.push(binormal);
+    tangentArray.push(tangent);
+    tangentArray.push(tangent);
+    tangentArray.push(tangent);
+
+    //segundo triangulo
+    positionArray.push(vertex[a]);
+    positionArray.push(vertex[c]);
+    positionArray.push(vertex[d]);
+    colorsArray.push(vertexColors[a]);
+    colorsArray.push(vertexColors[c]);
+    colorsArray.push(vertexColors[d]);
+    texCoordArray.push(texCoord[0]);
+    texCoordArray.push(texCoord[2]);
+    texCoordArray.push(texCoord[3]);
+    normalArray.push(normal);
+    normalArray.push(normal);
+    normalArray.push(normal);
+    binormalArray.push(binormal);
+    binormalArray.push(binormal);
+    binormalArray.push(binormal);
+    tangentArray.push(tangent);
+    tangentArray.push(tangent);
+    tangentArray.push(tangent);
+}
+
+quad(0, 1, 2, 3);
+quad(3, 2, 6, 7);
+quad(7, 6, 5, 4);
+quad(4, 5, 1, 0);
+quad(1, 5, 6, 2);
+quad(4, 0, 3, 7);
+//Triangulo 1
+positionArray.push(vec4(0.0, 1.0, 2.0, 1.0));
+positionArray.push(vec4(0.25, 0.5, 2.0, 1.0));
+positionArray.push(vec4(-0.25, 0.5, 2.0, 1.0));
+texCoordArray.push(texCoord[0]);
+texCoordArray.push(texCoord[1]);
+texCoordArray.push(texCoord[2]);
+normalArray.push(vec3(0, 0, 1.0));
+normalArray.push(vec3(0, 0, 1.0));
+normalArray.push(vec3(0, 0, 1.0));
+binormalArray.push(vec3(0, 1, 0));
+binormalArray.push(vec3(0, 1, 0));
+binormalArray.push(vec3(0, 1, 0));
+tangentArray.push(vec3(1, 0, 0));
+tangentArray.push(vec3(1, 0, 0));
+tangentArray.push(vec3(1, 0, 0));
+
+//triangulo 2
+//Triangulo 1
+positionArray.push(vec4(-5, -2.0, -5, 1.0));
+positionArray.push(vec4(5, -2, -5, 1.0));
+positionArray.push(vec4(0, -2, 5, 1.0));
+texCoordArray.push(texCoord[0]);
+texCoordArray.push(texCoord[1]);
+texCoordArray.push(texCoord[2]);
+normalArray.push(vec3(0, 1, 0));
+normalArray.push(vec3(0, 1, 0));
+normalArray.push(vec3(0, 1, 0));
+binormalArray.push(vec3(1, 0, 0));
+binormalArray.push(vec3(1, 0, 0));
+binormalArray.push(vec3(1, 0, 0));
+tangentArray.push(vec3(0, 0, 1));
+tangentArray.push(vec3(0, 0, 1));
+tangentArray.push(vec3(0, 0, 1));
+
+gl.useProgram(sprogram);
+let spositionBuffer = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, spositionBuffer);
+gl.bufferData(gl.ARRAY_BUFFER, flatten(positionArray), gl.STATIC_DRAW);
+let spositionLoc = gl.getAttribLocation(sprogram, "position");
+gl.vertexAttribPointer(spositionLoc, 4, gl.FLOAT, false, 0, 0);
+gl.enableVertexAttribArray(spositionLoc);
+
+gl.useProgram(program);
+//3. Copiar para GPU
+let positionBuffer = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+gl.bufferData(gl.ARRAY_BUFFER, flatten(positionArray), gl.STATIC_DRAW);
+let positionLoc = gl.getAttribLocation(program, "position");
+gl.vertexAttribPointer(positionLoc, 4, gl.FLOAT, false, 0, 0);
+gl.enableVertexAttribArray(positionLoc);
+
+let colorBuffer = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
+gl.bufferData(gl.ARRAY_BUFFER, flatten(colorsArray), gl.STATIC_DRAW);
+let colorLoc = gl.getAttribLocation(program, "color");
+gl.vertexAttribPointer(colorLoc, 4, gl.FLOAT, false, 0, 0);
+gl.enableVertexAttribArray(colorLoc);
+
+let texCoordBuffer = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, texCoordBuffer);
+gl.bufferData(gl.ARRAY_BUFFER, flatten(texCoordArray), gl.STATIC_DRAW);
+let texCoordLoc = gl.getAttribLocation(program, "texCoord");
+gl.vertexAttribPointer(texCoordLoc, 2, gl.FLOAT, false, 0, 0);
+gl.enableVertexAttribArray(texCoordLoc);
+
+
+let normalBuffer = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, normalBuffer);
+gl.bufferData(gl.ARRAY_BUFFER, flatten(normalArray), gl.STATIC_DRAW);
+let normalLoc = gl.getAttribLocation(program, "normal");
+gl.vertexAttribPointer(normalLoc, 3, gl.FLOAT, false, 0, 0);
+gl.enableVertexAttribArray(normalLoc);
+
+let binormalBuffer = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, binormalBuffer);
+gl.bufferData(gl.ARRAY_BUFFER, flatten(binormalArray), gl.STATIC_DRAW);
+let binormalLoc = gl.getAttribLocation(program, "binormal");
+gl.vertexAttribPointer(binormalLoc, 3, gl.FLOAT, false, 0, 0);
+gl.enableVertexAttribArray(binormalLoc);
+
+let tangentBuffer = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, tangentBuffer);
+gl.bufferData(gl.ARRAY_BUFFER, flatten(tangentArray), gl.STATIC_DRAW);
+let tangentLoc = gl.getAttribLocation(program, "tangent");
+gl.vertexAttribPointer(tangentLoc, 3, gl.FLOAT, false, 0, 0);
+gl.enableVertexAttribArray(tangentLoc);
+
+//Luz
+const lightPosition = vec4(0.0, 0.0, 2.5, 1.0);
+const lightAmbient = vec4(0.2, 0.2, 0.2, 1);
+const lightDiffuse = vec4(1, 1, 1, 1.0);
+
+gl.useProgram(sprogram);
+let leye = vec3(lightPosition[0], lightPosition[1], lightPosition[2]),
+    ltarget = vec3(0, 0.0, 0),
+    lup = vec3(0, 1, 0);
+let lviewMatrix = lookAt(leye, ltarget, lup);
+let lprojectionMatrix = perspective(45, aspect, 1, 20)
+let lviewProjection = mult(lprojectionMatrix, lviewMatrix);
+let lmvpMatrixLoc = gl.getUniformLocation(sprogram, "mvpMatrix");
+
+
+gl.useProgram(program);
+gl.uniform4fv(gl.getUniformLocation(program, 'lightPosition'), lightPosition);
+gl.uniform4fv(gl.getUniformLocation(program, 'ambient'), lightAmbient);
+gl.uniform4fv(gl.getUniformLocation(program, 'diffuse'), lightDiffuse);
+
+let framebuffer = gl.createFramebuffer();
+gl.bindFramebuffer (gl.FRAMEBUFFER, framebuffer);
+framebuffer.width=canvas.width;
+framebuffer.height=canvas.height;
+
+let renderbuffer = gl.createRenderbuffer();
+gl.bindRenderbuffer(gl.RENDERBUFFER, renderbuffer);
+gl.renderbufferStorage(gl.RENDERBUFFER,gl.DEPTH_COMPONENT16,canvas.width,canvas.height);
+gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,shadowmap,0);
+
+gl.framebufferRenderbuffer(gl.FRAMEBUFFER,gl.DEPTH_ATTACHMENT,gl.RENDERBUFFER,renderbuffer);
+////////////////
+// DRAW
+////////////////
+let eye = vec3(7, 1, 3.5), target = vec3(0, 0.0, 0),
+    up = vec3(0, 1, 0);
+let viewMatrix = lookAt(eye, target, up);
+let projectionMatrix = perspective(45, aspect, 1, 20)
+let viewProjection = mult(projectionMatrix, viewMatrix);
+let vpMatrixLoc = gl.getUniformLocation(program, "vpMatrix");
+let mMatrixLoc = gl.getUniformLocation(program, "mMatrix");
+let lvpMatrixLoc = gl.getUniformLocation(program, "lvpMatrix");
+let camPosloc = gl.getUniformLocation(program, "camPosition");
+let eye4 = vec4(eye[0], eye[1], eye[2], 1);
+gl.uniform4fv(camPosloc, eye4);
+let i = 0;
+let render = function () {
+    gl.clearColor(1.0,1.0,1.0,1.0);
+    gl.bindRenderbuffer(gl.RENDERBUFFER,renderbuffer);
+    gl.bindFramebuffer(gl.FRAMEBUFFER,framebuffer);
+    gl.clear(gl.COLOR_BUFFER_BIT,gl.DEPTH_BUFFER_BIT);
+
+    i = (i + 0.1) % 360;
+    let modelMatrix = mult(rotateX(i), rotateY(i));
+    gl.useProgram(sprogram);
+    gl.uniformMatrix4fv(lmvpMatrixLoc, false, flatten(mult(lviewProjection,modelMatrix)));
+    gl.drawArrays(gl.TRIANGLES, 0, 36);
+    gl.uniformMatrix4fv(lmvpMatrixLoc, false, flatten(lviewProjection));
+    gl.drawArrays(gl.TRIANGLES, 36, 6);
+
+    //segundo passo
+    gl.bindRenderbuffer(gl.RENDERBUFFER,null);
+    gl.bindFramebuffer(gl.FRAMEBUFFER,null);
+
     gl.useProgram(program);
-
-    //Textura
-    let image = document.getElementById("texImage");
-    let texture = gl.createTexture();
     gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D,texture);
-    gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,image)
-    gl.generateMipmap(gl.TEXTURE_2D);
-    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);
-    gl.uniform1i(gl.getUniformLocation(program,"textureMap"),0) ; //mudar de 0 para +1 caso adicionar outra textura
-
-    let bump = document.getElementById("bumpImage");
-    let bumpTexture = gl.createTexture();
+    gl.uniform1i(gl.getUniformLocation(program, "shadowMap"), 0); //mudar de 0 para +1 caso adicionar outra textura
     gl.activeTexture(gl.TEXTURE1);
-    gl.bindTexture(gl.TEXTURE_2D,bumpTexture);
-    gl.texImage2D(gl.TEXTURE_2D,0,gl.RGB,gl.RGB,gl.UNSIGNED_BYTE,bump)
-    gl.generateMipmap(gl.TEXTURE_2D);
-    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);
-    gl.uniform1i(gl.getUniformLocation(program,"bumpMap"),1) ; //mudar de 0 para +1 caso adicionar outra textura
+    gl.uniform1i(gl.getUniformLocation(program, "textureMap"), 1);
+    gl.activeTexture(gl.TEXTURE2);
+    gl.uniform1i(gl.getUniformLocation(program, "bumpMap"), 2);
 
+    gl.clearColor(0.5,0.5,0.5,1.0);
+    gl.clear(gl.COLOR_BUFFER_BIT,gl.DEPTH_BUFFER_BIT);
 
+    gl.uniformMatrix4fv(mMatrixLoc, false, flatten(modelMatrix));
+    gl.uniformMatrix4fv(vpMatrixLoc, false, flatten(viewProjection));
+    gl.uniformMatrix4fv(lvpMatrixLoc, false, flatten(mult(lviewProjection,modelMatrix)));
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    gl.drawArrays(gl.TRIANGLES, 0, 36);
+    modelMatrix = rotateZ(0);
+    gl.uniformMatrix4fv(lvpMatrixLoc, false, flatten(lviewProjection));
+    gl.uniformMatrix4fv(mMatrixLoc, false, flatten(modelMatrix));
+    gl.drawArrays(gl.TRIANGLES, 36, 6);
 
-    //1. Defirnir os arrays de vertices
-    let vertex = [
-        vec4(-1,-1,1,1), //0
-        vec4(-1,1,1,1),//1
-        vec4(1,1,1,1),//2
-        vec4(1,-1,1,1),//3
-        vec4(-1,-1,-1,1),//4
-        vec4(-1,1,-1,1),//5
-        vec4(1,1,-1,1),//6
-        vec4(1,-1,-1,1),//7
-    ];
-    let vertexColors = [
-        vec4(0,1,0,1),
-        vec4(1,0,0,1),
-        vec4(0,0,1,1),
-        vec4(1,1,1,1),
-        vec4(1,1,0,1),
-        vec4(0,1,1,1),
-        vec4(1,0,1,1),
-        vec4(0.5,0.5,0.5,1),
-    ]
+    requestAnimationFrame(render);
+}
 
-    let texCoord = [
-        vec2 (0,0),
-        vec2 (0,2),
-        vec2 (2,2),
-        vec2 (2,0)
-    ]
-
-
-    //inserir os vertices que serão desenhados como trinangulos
-    let positionArray =[];
-    let colorsArray =[];
-    let texCoordArray =[];
-    let normalArray =[];
-    let binormalArray =[];
-    let tangentArray =[];
-
-    function  quad(a,b,c,d){
-        let tangent= normalize(subtract(vertex[b],vertex[a]),true);
-        let binormal= normalize(subtract(vertex[c],vertex[b]),true);
-        let normal = cross(tangent,binormal);
-        binormal = vec3 (binormal[0],binormal[1],binormal[2]);
-        tangent = vec3 (tangent[0],tangent[1],tangent[2]);
-        //primeiro triangulo
-        positionArray.push(vertex[a]);
-        positionArray.push(vertex[b]);
-        positionArray.push(vertex[c]);
-        colorsArray.push(vertexColors[a]);
-        colorsArray.push(vertexColors[b]);
-        colorsArray.push(vertexColors[c]);
-        texCoordArray.push(texCoord[0]);
-        texCoordArray.push(texCoord[1]);
-        texCoordArray.push(texCoord[2]);
-        normalArray.push(normal);
-        normalArray.push(normal);
-        normalArray.push(normal);
-        binormalArray.push(binormal);
-        binormalArray.push(binormal);
-        binormalArray.push(binormal);
-        tangentArray.push(tangent);
-        tangentArray.push(tangent);
-        tangentArray.push(tangent);
-
-        //segundo triangulo
-        positionArray.push(vertex[a]);
-        positionArray.push(vertex[c]);
-        positionArray.push(vertex[d]);
-        colorsArray.push(vertexColors[a]);
-        colorsArray.push(vertexColors[c]);
-        colorsArray.push(vertexColors[d]);
-        texCoordArray.push(texCoord[0]);
-        texCoordArray.push(texCoord[2]);
-        texCoordArray.push(texCoord[3]);
-        normalArray.push(normal);
-        normalArray.push(normal);
-        normalArray.push(normal);
-        binormalArray.push(binormal);
-        binormalArray.push(binormal);
-        binormalArray.push(binormal);
-        tangentArray.push(tangent);
-        tangentArray.push(tangent);
-        tangentArray.push(tangent);
-    }
-    quad(0,1,2,3);
-    quad(3,2,6,7);
-    quad(7,6,5,4);
-    quad(4,5,1,0);
-    quad(1,5,6,2);
-    quad(4,0,3,7);
-    //Triangulo 1
-    positionArray.push(vec4(0.0,1.0,2.0,1.0));
-    positionArray.push(vec4(0.25,0.5,2.0,1.0));
-    positionArray.push(vec4(-0.25,0.5,2.0,1.0));
-    texCoordArray.push(texCoord[0]);
-    texCoordArray.push(texCoord[1]);
-    texCoordArray.push(texCoord[2]);
-    normalArray.push(vec3(0,0,1.0));
-    normalArray.push(vec3(0,0,1.0));
-    normalArray.push(vec3(0,0,1.0));
-    binormalArray.push(vec3(0,1,0));
-    binormalArray.push(vec3(0,1,0));
-    binormalArray.push(vec3(0,1,0));
-    tangentArray.push(vec3(1,0,0));
-    tangentArray.push(vec3(1,0,0));
-    tangentArray.push(vec3(1,0,0));
-
-    //triangulo 2
-    //Triangulo 1
-    positionArray.push(vec4(-5,-2.0,-5,1.0));
-    positionArray.push(vec4(5,-2,-5,1.0));
-    positionArray.push(vec4(0,-2,5,1.0));
-    texCoordArray.push(texCoord[0]);
-    texCoordArray.push(texCoord[1]);
-    texCoordArray.push(texCoord[2]);
-    normalArray.push(vec3(0,1,0));
-    normalArray.push(vec3(0,1,0));
-    normalArray.push(vec3(0,1,0));
-    binormalArray.push(vec3(1,0,0));
-    binormalArray.push(vec3(1,0,0));
-    binormalArray.push(vec3(1,0,0));
-    tangentArray.push(vec3(0,0,1));
-    tangentArray.push(vec3(0,0,1));
-    tangentArray.push(vec3(0,0,1));
-
-
-
-    //3. Copiar para GPU
-    let positionBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER,positionBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER,flatten(positionArray),gl.STATIC_DRAW);
-    let positionLoc = gl.getAttribLocation(program,"position");
-    gl.vertexAttribPointer(positionLoc,4,gl.FLOAT,false,0,0);
-    gl.enableVertexAttribArray(positionLoc);
-
-    let colorBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER,colorBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER,flatten(colorsArray),gl.STATIC_DRAW);
-    let colorLoc = gl.getAttribLocation(program,"color");
-    gl.vertexAttribPointer(colorLoc,4,gl.FLOAT,false,0,0);
-    gl.enableVertexAttribArray(colorLoc);
-
-    let texCoordBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER,texCoordBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER,flatten(texCoordArray),gl.STATIC_DRAW);
-    let texCoordLoc = gl.getAttribLocation(program,"texCoord");
-    gl.vertexAttribPointer(texCoordLoc,2,gl.FLOAT,false,0,0);
-    gl.enableVertexAttribArray(texCoordLoc);
-
-
-    let normalBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER,normalBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER,flatten(normalArray),gl.STATIC_DRAW);
-    let normalLoc = gl.getAttribLocation(program,"normal");
-    gl.vertexAttribPointer(normalLoc,3,gl.FLOAT,false,0,0);
-    gl.enableVertexAttribArray(normalLoc);
-
-    let binormalBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER,binormalBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER,flatten(binormalArray),gl.STATIC_DRAW);
-    let binormalLoc = gl.getAttribLocation(program,"binormal");
-    gl.vertexAttribPointer(binormalLoc,3,gl.FLOAT,false,0,0);
-    gl.enableVertexAttribArray(binormalLoc);
-
-    let tangentBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER,tangentBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER,flatten(tangentArray),gl.STATIC_DRAW);
-    let tangentLoc = gl.getAttribLocation(program,"tangent");
-    gl.vertexAttribPointer(tangentLoc,3,gl.FLOAT,false,0,0);
-    gl.enableVertexAttribArray(tangentLoc);
-
-    //Luz
-    const lightPosition = vec4(0.0,0.0,2.5,1.0);
-    const lightAmbient = vec4(0.2,0.2,0.2,1);
-    const lightDiffuse = vec4 (1,1,1,1.0);
-
-    gl.uniform4fv(gl.getUniformLocation(program,'lightPosition'),lightPosition);
-    gl.uniform4fv(gl.getUniformLocation(program,'ambient'),lightAmbient);
-    gl.uniform4fv(gl.getUniformLocation(program,'diffuse'),lightDiffuse);
-
-
-    ////////////////
-    // DRAW
-    ////////////////
-    let eye= vec3(7,1,3.5), target=vec3(0,0.0,0),
-        up = vec3(0,1,0) ;
-    let viewMatrix= lookAt(eye,target,up);
-    let projectionMatrix = perspective(45,aspect,1,20)
-    let viewProjection= mult(projectionMatrix,viewMatrix);
-    let vpMatrixLoc= gl.getUniformLocation(program,"vpMatrix");
-    let mMatrixLoc= gl.getUniformLocation(program,"mMatrix");
-    let camPosloc = gl.getUniformLocation(program,"camPosition");
-    let eye4 = vec4(eye[0],eye[1],eye[2],1);
-    gl.uniform4fv(camPosloc,eye4);
-    let i=0;
-    let render = function (){
-        i = (i+0.1) % 360;
-        let modelMatrix = mult(rotateX(i) ,rotateY(i));
-        gl.uniformMatrix4fv(mMatrixLoc,false,flatten(modelMatrix));
-        gl.uniformMatrix4fv(vpMatrixLoc,false,flatten(viewProjection));
-        gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
-        gl.drawArrays(gl.TRIANGLES,0,36);
-        modelMatrix = rotateZ(i);
-        gl.uniformMatrix4fv(mMatrixLoc,false,flatten(modelMatrix));
-        gl.drawArrays(gl.TRIANGLES,36,3);
-        modelMatrix = rotateZ(0); //matriz identidade
-        gl.uniformMatrix4fv(mMatrixLoc,false,flatten(modelMatrix));
-        gl.drawArrays(gl.TRIANGLES,39,3);
-        requestAnimationFrame(render);
-    }
-
-    render ();
-
+render();
+}
 </script>
 
 </body>
