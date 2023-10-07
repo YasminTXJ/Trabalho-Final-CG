@@ -77,23 +77,23 @@
 
         out vec4 fragColor;
         void main() {
-            vec4 texColor = texture(shadowMap,ftexCoord);
+            vec4 texColor = texture(textureMap,ftexCoord);
             vec4 bumpColor = texture(bumpMap,ftexCoord);
             vec3 bumpNormal = 2.0*bumpColor.xyz -1.0;
 
-            vec3 shadowcoord = 0.5*lposition.zyz/lposition.w +0.5;
+            vec3 shadowcoord = 0.5*lposition.xyz/lposition.w +0.5;
             float depth = texture(shadowMap,shadowcoord.xy).r;
 
-            if (  shadowcoord.z <= depth){
+            if (  shadowcoord.z -0.0025 <= depth){
             mat3 TBN = mat3(normalize(iptangent.xyz),
                             normalize(ipbinormal.xyz),
                             normalize(ipnormal.xyz));
             vec3 truenormal= normalize(TBN*bumpNormal);
             vec3  lightDir = normalize ( pos3D.xyz - lightPosition.xyz );
-            float diffusefactor= max(0.0,dot(lightDir, normalize(truenormal.xyz)));
-            vec3  reflected = reflect ( lightDir, normalize(truenormal.xyz));
+            float diffusefactor= clamp(dot(lightDir, truenormal.xyz),0.0,1.0);
+            vec3  reflected = reflect ( lightDir, truenormal.xyz);
             vec4  viewDir= normalize ( camPosition - pos3D);
-            float specularfactor = pow(max(0.0,dot(reflected, normalize(viewDir.xyz))),1.0);
+            float specularfactor = pow(max(0.0,dot(reflected, viewDir.xyz)),1.0);
             fragColor = texColor*(ambient + diffusefactor +specularfactor) * diffuse;
             } else{
               fragColor = texColor*ambient;
@@ -112,38 +112,32 @@
 <script>
 window.onload = () => {
     let canvas = document.getElementById("webgl-canvas");
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
     let aspect = canvas.width / canvas.height;
     let gl = canvas.getContext("webgl2");
-    if(
-!gl
-)
-{
-    console.error("WebGL 2 not available");
-    document.body.innerHTML = "This example requires WebGL 2 which is unavailable on this system."
-}
-gl.clearColor(0, 0, 0, 1);
+    if(!gl)
+    {
+        console.error("WebGL 2 not available");
+        document.body.innerHTML = "This example requires WebGL 2 which is unavailable on this system."
+    }
+
+
+//gl.clearColor(1.0, 1.0, 1.0, 1);
 gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
 gl.enable(gl.DEPTH_TEST);
 
 let sprogram = initShaders(gl,"svs","sfs");
 let program = initShaders(gl,"vs","fs");
 
-gl.useProgram(sprogram);
+gl.useProgram(program);
 let shadowmap = gl.createTexture();
 gl.activeTexture(gl.TEXTURE0);
 gl.bindTexture(gl.TEXTURE_2D, shadowmap);
-gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA,1024,1024,0,gl.RGBA, gl.UNSIGNED_BYTE, null);
+gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1024, 1024, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
 gl.generateMipmap(gl.TEXTURE_2D);
 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-
-
-
-gl.useProgram(program);
 //Textura
 let image = document.getElementById("texImage");
 let texture = gl.createTexture();
@@ -292,7 +286,6 @@ tangentArray.push(vec3(0, 0, 1));
 tangentArray.push(vec3(0, 0, 1));
 tangentArray.push(vec3(0, 0, 1));
 
-gl.useProgram(sprogram);
 let spositionBuffer = gl.createBuffer();
 gl.bindBuffer(gl.ARRAY_BUFFER, spositionBuffer);
 gl.bufferData(gl.ARRAY_BUFFER, flatten(positionArray), gl.STATIC_DRAW);
@@ -300,7 +293,6 @@ let spositionLoc = gl.getAttribLocation(sprogram, "position");
 gl.vertexAttribPointer(spositionLoc, 4, gl.FLOAT, false, 0, 0);
 gl.enableVertexAttribArray(spositionLoc);
 
-gl.useProgram(program);
 //3. Copiar para GPU
 let positionBuffer = gl.createBuffer();
 gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
@@ -346,11 +338,10 @@ gl.vertexAttribPointer(tangentLoc, 3, gl.FLOAT, false, 0, 0);
 gl.enableVertexAttribArray(tangentLoc);
 
 //Luz
-const lightPosition = vec4(0.0, 0.0, 5.5, 1.0);
+const lightPosition = vec4(0.0, 2.0, 5.5, 1.0);
 const lightAmbient = vec4(0.2, 0.2, 0.2, 1);
 const lightDiffuse = vec4(1, 1, 1, 1.0);
 
-gl.useProgram(sprogram);
 let leye = vec3(lightPosition[0], lightPosition[1], lightPosition[2]),
     ltarget = vec3(0, 0.0, 0),
     lup = vec3(0, 1, 0);
@@ -360,7 +351,6 @@ let lviewProjection = mult(lprojectionMatrix, lviewMatrix);
 let lmvpMatrixLoc = gl.getUniformLocation(sprogram, "mvpMatrix");
 
 
-gl.useProgram(program);
 gl.uniform4fv(gl.getUniformLocation(program, 'lightPosition'), lightPosition);
 gl.uniform4fv(gl.getUniformLocation(program, 'ambient'), lightAmbient);
 gl.uniform4fv(gl.getUniformLocation(program, 'diffuse'), lightDiffuse);
@@ -395,10 +385,10 @@ let render = function () {
     gl.clearColor(1.0,1.0,1.0,1.0);
     gl.bindRenderbuffer(gl.RENDERBUFFER,renderbuffer);
     gl.bindFramebuffer(gl.FRAMEBUFFER,framebuffer);
-    gl.clear(gl.COLOR_BUFFER_BIT,gl.DEPTH_BUFFER_BIT);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
     i = (i + 0.1) % 360;
-    let modelMatrix = mult(rotateX(i), rotateY(i));
+    let modelMatrix = rotateY(i);
     gl.useProgram(sprogram);
     gl.uniformMatrix4fv(lmvpMatrixLoc, false, flatten(mult(lviewProjection,modelMatrix)));
     gl.drawArrays(gl.TRIANGLES, 0, 36);
@@ -406,8 +396,9 @@ let render = function () {
     gl.drawArrays(gl.TRIANGLES, 36, 6);
 
     //segundo passo
-    gl.bindRenderbuffer(gl.RENDERBUFFER,null);
     gl.bindFramebuffer(gl.FRAMEBUFFER,null);
+    gl.bindRenderbuffer(gl.RENDERBUFFER,null);
+
 
     gl.useProgram(program);
     gl.activeTexture(gl.TEXTURE0);
@@ -418,7 +409,7 @@ let render = function () {
     gl.uniform1i(gl.getUniformLocation(program, "bumpMap"), 2);
 
     gl.clearColor(0.5,0.5,0.5,1.0);
-    gl.clear(gl.COLOR_BUFFER_BIT,gl.DEPTH_BUFFER_BIT);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
     gl.uniformMatrix4fv(mMatrixLoc, false, flatten(modelMatrix));
     gl.uniformMatrix4fv(vpMatrixLoc, false, flatten(viewProjection));
