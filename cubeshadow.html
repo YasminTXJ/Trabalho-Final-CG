@@ -83,7 +83,7 @@
             vec3 shadowcoord = 0.5*lposition.xyz/lposition.w +0.5;
             float depth = texture(shadowMap,shadowcoord.xy).r;
 
-            if (  shadowcoord.z -0.0025 <= depth){
+            if (  shadowcoord.z - 0.0025 <= depth){
             mat3 TBN = mat3(normalize(iptangent.xyz),
                             normalize(ipbinormal.xyz),
                             normalize(ipnormal.xyz));
