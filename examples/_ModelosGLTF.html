@@ -29,8 +29,28 @@
 				const light1 = new THREE.PointLight( 0xffffff, 1, 0 );
 				light1.position.set( 0, 100, 0 );
 				scene.add( light1 );
+				const envLoader = new RGBELoader().setPath('textures/equirectangular/')
+						.load('pedestrian_overpass_1k.hdr',texture => {
+							texture.mapping= THREE.EquirectangularReflectionMapping;
+							scene.background=texture;
+							scene.environment=texture;
+						})
 
+				const loader = new GLTFLoader().setPath('../porshe/');
+				loader.load('scene.gltf', gltf => {
+					/*gltf.parser.getDependencies('material').then( materials=>
+					console.log(materials) )*/
+					gltf.scene.traverse( o =>{
+						if (o.isMesh) {
+							let prevMaterial = o.material;
+							o.material = new THREE.MeshPhongMaterial();
+							THREE.MeshBasicMaterial.prototype.copy.call(o.material,prevMaterial);
+						}
+					});
+					scene.add(gltf.scene);
+				}
 
+				);
 
 				camera = new THREE.PerspectiveCamera( 45, window.innerWidth / window.innerHeight, 0.25, 20 );
 				camera.position.set( - 1.8, 0.6, 2.7 );
