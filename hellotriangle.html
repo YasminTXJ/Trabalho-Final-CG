@@ -3,18 +3,20 @@
 <script type="vertex" id="vs">
     #version 300 es
     precision highp float;
+    uniform mat4 mvp;
     in vec4 position;
     in vec4 color;
     out vec4 vColor;
     void main() {
         //mudar a escala do ponto
-        mat4 escala = mat4(0.5,0,0,0,
-                     0,0.5,0,0,
-                     0,0,1.0,0,
-                     0,0,0,1.0);
-        vec4 deslocamento = vec4(0.5,-0.5,0.0,0.0);
+
+        float a = radians(90.0);
+        mat4 rotation = mat4 (cos(a),-sin(a),0,0,
+                              sin(a),cos(a),0,0,
+                              0,0,1.0,0,
+                              0,0,0,1.0);
         vColor=color;
-        gl_Position= position;
+        gl_Position= mvp*position;
     }
 </script>
 
@@ -24,10 +26,7 @@
     in vec4 vColor;
     out vec4 fragColor;
     void main() {
-        if ( gl_FragCoord.x > 640.0)
-            fragColor=vColor+vec4(0.6,0.6,0.6,0.0);
-        else
-            fragColor=vColor;
+          fragColor=vColor+vec4(0.3,0.3,0.3,0.0);
     }
 </script>
 
@@ -109,6 +108,12 @@
     // DRAW
     ////////////////
 
+    let eye= vec3(0,0,3.99), target=vec3(0,0,0), up = vec3(0,1,0);
+    let viewMatrix= lookAt(eye,target,up);
+    let projectMatrix = perspective(45,aspect,1,4);
+    let mvp = mult(projectMatrix, viewMatrix);
+    let mvpLoc = gl.getUniformLocation(program,"mvp");
+    gl.uniformMatrix4fv(mvpLoc,false,flatten(mvp));
     let render = function (){
         gl.clear (gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT );
         gl.drawArrays(gl.TRIANGLES,0,3);
