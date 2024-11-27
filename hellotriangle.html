@@ -7,8 +7,14 @@
     in vec4 color;
     out vec4 vColor;
     void main() {
+        //mudar a escala do ponto
+        mat4 escala = mat4(0.5,0,0,0,
+                     0,0.5,0,0,
+                     0,0,1.0,0,
+                     0,0,0,1.0);
+        vec4 deslocamento = vec4(0.5,-0.5,0.0,0.0);
         vColor=color;
-        gl_Position= position;
+        gl_Position= escala*position + deslocamento;
     }
 </script>
 
