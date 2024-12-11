@@ -6,10 +6,14 @@
     uniform mat4 mvp;
     in vec4 position;
     in vec4 color;
-    out vec4 vColor;
+    in vec2 texCoord;
+
+    out vec4 fColor;
+    out vec2 ftexCoord;
     void main() {
         //mudar a escala do ponto
-        vColor=color;
+        fColor=color;
+        ftexCoord=texCoord;
         gl_Position= mvp*position;
     }
 </script>
@@ -17,16 +21,19 @@
 <script type="fragment" id="fs">
     #version 300 es
     precision highp float;
-    in vec4 vColor;
+    in vec4 fColor;
+    in vec2 ftexCoord;
     out vec4 fragColor;
+    uniform sampler2D textureMap;
     void main() {
-          fragColor=vColor;
+          fragColor= texture (textureMap, ftexCoord);
     }
 </script>
 
 
 <canvas id="webgl-canvas"></canvas>
 <script type="text/javascript" src="Common/MV.js"></script>
+<img id="texture" src="logo.png" hidden  alt="ssd"/>
 <script>
     let canvas = document.getElementById("webgl-canvas");
     canvas.width = window.innerWidth;
@@ -39,6 +46,7 @@
     }
     gl.clearColor(0, 0, 0, 1);
     gl.enable(gl.DEPTH_TEST);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,true);
 
     let vsSource = document.getElementById("vs").text.trim();
     let fsSource = document.getElementById("fs").text.trim();
@@ -84,8 +92,16 @@
         vec4(1,0,1,1),
         vec4(0.5,0.5,0.5,1)];
 
+    let texCoord = [
+        vec2(0,0),
+        vec2(0,1),
+        vec2(1,1),
+        vec2(1,0),
+    ]
+
     let positionArray =[];
     let colorArray =[];
+    let texCoordArray =[];
     function  quad(a,b,c,d){
         positionArray.push(vertex[a]);
         positionArray.push(vertex[b]);
@@ -93,6 +109,9 @@
         colorArray.push(vertexColors[a]);
         colorArray.push(vertexColors[b]);
         colorArray.push(vertexColors[c]);
+        texCoordArray.push (texCoord[0]);
+        texCoordArray.push (texCoord[1]);
+        texCoordArray.push (texCoord[2]);
 
         positionArray.push(vertex[a]);
         positionArray.push(vertex[c]);
@@ -100,6 +119,9 @@
         colorArray.push(vertexColors[a]);
         colorArray.push(vertexColors[c]);
         colorArray.push(vertexColors[d]);
+        texCoordArray.push (texCoord[0]);
+        texCoordArray.push (texCoord[2]);
+        texCoordArray.push (texCoord[3]);
     }
     quad(0,1,2,3);
     quad(3,2,6,7);
@@ -108,6 +130,15 @@
     quad(1,5,6,2);
     quad(4,0,3,7);
 
+    let image= document.getElementById("texture");
+    let texture= gl.createTexture();
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D,texture);
+    gl.texImage2D(gl.TEXTURE_2D,0,gl.RGB,gl.RGB,gl.UNSIGNED_BYTE,image);
+    gl.generateMipmap(gl.TEXTURE_2D);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);
+    gl.uniform1i(gl.getUniformLocation(program,"textureMap"),0);
 
 
     let positionBuffer = gl.createBuffer();
@@ -124,6 +155,13 @@
     gl.vertexAttribPointer(colorLoc,4,gl.FLOAT,false,0,0);
     gl.enableVertexAttribArray(colorLoc);
 
+    let texCoordBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER,texCoordBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER,flatten(texCoordArray),gl.STATIC_DRAW)
+    let texCoordLoc = gl.getAttribLocation(program,"texCoord");
+    gl.vertexAttribPointer(texCoordLoc,2,gl.FLOAT,false,0,0);
+    gl.enableVertexAttribArray(texCoordLoc);
+
     ////////////////
     // DRAW
     ////////////////
@@ -134,10 +172,12 @@
     let viewProjection= mult(projectMatrix,viewMatrix);
     let mvpLoc = gl.getUniformLocation(program,"mvp");
     let i=0;
+    let translation = translate(0,0,0);
+    let scalem= scale(1.0,1.0,1.0);
     let render = function (){
         i = (i+1) % 360;
         gl.clear (gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT );
-        let modelMatrix = rotateY(i);
+        let modelMatrix = mult(translation,mult(scalem,rotateX(i)));
         let mvp= mult(viewProjection,modelMatrix);
         gl.uniformMatrix4fv(mvpLoc,false,flatten(mvp));
         gl.drawArrays(gl.TRIANGLES,0,positionArray.length);
