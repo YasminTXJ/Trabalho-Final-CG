@@ -11,18 +11,13 @@
 
     uniform mat4 mMatrix;
     uniform mat4 vpMatrix;
-    uniform vec4 ambientLight;
-    uniform vec4 lightPosition;
-    uniform vec4 lightIntensity;
 
-    out vec4 light;
     out vec2 ftexCoord;
-
+    out vec4 ipNormal;
+    out vec4 rotPosition;
     void main() {
-        vec4 rotNormal = mMatrix * vec4 (normal,0);
-        vec4 rotPosition= mMatrix * position;
-        light = ambientLight + lightIntensity * dot(normalize(rotPosition-lightPosition),normalize(rotNormal));
-        light.a= 1.0;
+        ipNormal = mMatrix * vec4 (normal,0);
+        rotPosition= mMatrix * position;
         ftexCoord=texCoord;
         gl_Position= vpMatrix*rotPosition;
     }
@@ -31,11 +26,19 @@
 <script type="fragment" id="fs">
     #version 300 es
     precision highp float;
-    in vec4 light;
+
     in vec2 ftexCoord;
+    in vec4 rotPosition;
+    in vec4 ipNormal;
     out vec4 fragColor;
     uniform sampler2D textureMap;
+    uniform vec4 ambientLight;
+    uniform vec4 lightPosition;
+    uniform vec4 lightIntensity;
     void main() {
+        vec4 light = ambientLight + lightIntensity *
+        dot(normalize(rotPosition-lightPosition),normalize(ipNormal));
+        light.a= 1.0;
           fragColor= texture (textureMap, ftexCoord) * light;
     }
 </script>
@@ -195,7 +198,6 @@
         let texCoordLoc = gl.getAttribLocation(program, "texCoord");
         gl.vertexAttribPointer(texCoordLoc, 2, gl.FLOAT, false, 0, 0);
         gl.enableVertexAttribArray(texCoordLoc);
-
 
         let normalBuffer = gl.createBuffer();
         gl.bindBuffer(gl.ARRAY_BUFFER, normalBuffer);
