@@ -3,30 +3,40 @@
 <script type="vertex" id="vs">
     #version 300 es
     precision highp float;
-    uniform mat4 mvp;
+
     in vec4 position;
     in vec4 color;
     in vec2 texCoord;
+    in vec3 normal;
 
-    out vec4 fColor;
+    uniform mat4 mMatrix;
+    uniform mat4 vpMatrix;
+    uniform vec4 ambientLight;
+    uniform vec4 lightPosition;
+    uniform vec4 lightIntensity;
+
+    out vec4 light;
     out vec2 ftexCoord;
+
     void main() {
-        //mudar a escala do ponto
-        fColor=color;
+        vec4 rotNormal = mMatrix * vec4 (normal,0);
+        vec4 rotPosition= mMatrix * position;
+        light = ambientLight + lightIntensity * dot(normalize(rotPosition-lightPosition),normalize(rotNormal));
+        light.a= 1.0;
         ftexCoord=texCoord;
-        gl_Position= mvp*position;
+        gl_Position= vpMatrix*rotPosition;
     }
 </script>
 
 <script type="fragment" id="fs">
     #version 300 es
     precision highp float;
-    in vec4 fColor;
+    in vec4 light;
     in vec2 ftexCoord;
     out vec4 fragColor;
     uniform sampler2D textureMap;
     void main() {
-          fragColor= texture (textureMap, ftexCoord);
+          fragColor= texture (textureMap, ftexCoord) * light;
     }
 </script>
 
@@ -196,7 +206,7 @@
 
         //Luz
         const ambientLight = vec4(0.3,0.3,0.3,1);
-        const lightPosition = vec4 (0,0,2.5,1);
+        const lightPosition = vec4 (0,0,2,1);
         const lightIntensity= vec4 (1.2,1.2,1.2,1);
         gl.uniform4fv( gl.getUniformLocation(program, "ambientLight"), ambientLight);
         gl.uniform4fv( gl.getUniformLocation(program, "lightPosition"), lightPosition);
