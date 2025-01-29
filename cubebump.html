@@ -50,7 +50,8 @@
 
 <canvas id="webgl-canvas"></canvas>
 <script type="text/javascript" src="Common/MV.js"></script>
-<img id="texture" src="logo.png" hidden  alt="ssd"/>
+<img id="texture" src="stone01.png" hidden  alt="ssd"/>
+<img id="bump" src="bump01.png" hidden  alt="sd"/>
 <script>
     function main () {
         let canvas = document.getElementById("webgl-canvas");
@@ -121,11 +122,15 @@
         let colorArray = [];
         let texCoordArray = [];
         let normalArray = [];
+        let binormalArray = [];
+        let tangentArray = [];
 
         function quad(a, b, c, d) {
-            let v1 = subtract(vertex[b], vertex[a]);
-            let v2 = subtract(vertex[c],vertex[b]);
-            let normal = cross(v1,v2);
+            let tangent = normalize(subtract(vertex[b], vertex[a]),true);
+            tangent = vec3( tangent[0],tangent[1],tangent[2]);
+            let binormal = normalize(subtract(vertex[c],vertex[b]),true);
+            binormal = vec3( binormal[0],binormal[1],binormal[2] );
+            let normal = cross(tangent,binormal);
             positionArray.push(vertex[a]);
             positionArray.push(vertex[b]);
             positionArray.push(vertex[c]);
@@ -138,6 +143,12 @@
             normalArray.push(normal);
             normalArray.push(normal);
             normalArray.push(normal);
+            binormalArray.push(binormal);
+            binormalArray.push(binormal);
+            binormalArray.push(binormal);
+            tangentArray.push(tangent);
+            tangentArray.push(tangent);
+            tangentArray.push(tangent);
 
             positionArray.push(vertex[a]);
             positionArray.push(vertex[c]);
@@ -151,6 +162,12 @@
             normalArray.push(normal);
             normalArray.push(normal);
             normalArray.push(normal);
+            binormalArray.push(binormal);
+            binormalArray.push(binormal);
+            binormalArray.push(binormal);
+            tangentArray.push(tangent);
+            tangentArray.push(tangent);
+            tangentArray.push(tangent);
         }
 
         quad(0, 1, 2, 3);
@@ -178,8 +195,24 @@
             const max = gl.getParameter(ext.MAX_TEXTURE_MAX_ANISOTROPY_EXT);
             gl.texParameterf(gl.TEXTURE_2D, ext.TEXTURE_MAX_ANISOTROPY_EXT, max);
         }
-
         gl.uniform1i(gl.getUniformLocation(program, "textureMap"), 0);
+
+        let bump = document.getElementById("bump");
+        let bumptexture = gl.createTexture();
+        gl.activeTexture(gl.TEXTURE1);
+        gl.bindTexture(gl.TEXTURE_2D, bumptexture);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, bump);
+        gl.generateMipmap(gl.TEXTURE_2D);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.MIRRORED_REPEAT);         //espelhamento
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.MIRRORED_REPEAT);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR); //Trilinear
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+        if (ext) {
+            const max = gl.getParameter(ext.MAX_TEXTURE_MAX_ANISOTROPY_EXT);
+            gl.texParameterf(gl.TEXTURE_2D, ext.TEXTURE_MAX_ANISOTROPY_EXT, max);
+        }
+        gl.uniform1i(gl.getUniformLocation(program, "bumpMap"), 1); //mudei de 0 para 1 devido ao novo textureUnit
+
 
 
         let positionBuffer = gl.createBuffer();
@@ -209,6 +242,21 @@
         let normalLoc = gl.getAttribLocation(program, "normal");
         gl.vertexAttribPointer(normalLoc, 3, gl.FLOAT, false, 0, 0);
         gl.enableVertexAttribArray(normalLoc);
+
+        let binormalBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, binormalBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, flatten(binormalArray), gl.STATIC_DRAW)
+        let binormalLoc = gl.getAttribLocation(program, "binormal");
+        gl.vertexAttribPointer(binormalLoc, 3, gl.FLOAT, false, 0, 0);
+        gl.enableVertexAttribArray(binormalLoc);
+
+        let tangentBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, tangentBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, flatten(tangentArray), gl.STATIC_DRAW)
+        let tangentLoc = gl.getAttribLocation(program, "tangent");
+        gl.vertexAttribPointer(tangentLoc, 3, gl.FLOAT, false, 0, 0);
+        gl.enableVertexAttribArray(tangentLoc);
+
 
         //Luz
         const ambientLight = vec4(0.3,0.3,0.3,1);
