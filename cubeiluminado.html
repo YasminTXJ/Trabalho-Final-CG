@@ -35,11 +35,15 @@
     uniform vec4 ambientLight;
     uniform vec4 lightPosition;
     uniform vec4 lightIntensity;
+    uniform vec3 camPos;
     void main() {
-        vec4 light = ambientLight + lightIntensity *
-        dot(normalize(rotPosition-lightPosition),normalize(ipNormal));
+        vec4 lightDir=  normalize(rotPosition-lightPosition);
+        vec4 viewDir= normalize(vec4(camPos,1.0) - rotPosition);
+        vec4 reflected =  reflect ( lightDir,normalize(ipNormal));
+        vec4 light = ambientLight + lightIntensity * ( dot(lightDir
+        ,normalize(ipNormal)) +  pow(max(0.0,dot(reflected, viewDir)),4.0)  ) ;
         light.a= 1.0;
-          fragColor= texture (textureMap, ftexCoord) * light;
+        fragColor= texture (textureMap, ftexCoord) * light;
     }
 </script>
 
@@ -224,13 +228,15 @@
         let vpLoc = gl.getUniformLocation(program, "vpMatrix");
         let mLoc = gl.getUniformLocation(program, "mMatrix");
         gl.uniformMatrix4fv(vpLoc, false, flatten(viewProjection));
+        gl.uniform3fv( gl.getUniformLocation(program, "camPos"), eye);
         let i = 0;
         let translation = translate(0, 0, 0);
         let scalem = scale(1.0, 1.0, 1.0);
+
         let render = function () {
             i = (i + 0.5) % 360;
             gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-            let modelMatrix = mult(translation, mult(scalem, rotateX(i)));
+            let modelMatrix = mult(translation, mult(scalem, rotateY(i)));
             gl.uniformMatrix4fv(mLoc, false, flatten(modelMatrix));
             gl.drawArrays(gl.TRIANGLES, 0, positionArray.length);
             requestAnimationFrame(render);
