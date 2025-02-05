@@ -8,15 +8,22 @@
     in vec4 color;
     in vec2 texCoord;
     in vec3 normal;
+    in vec3 binormal;
+    in vec3 tangent;
 
     uniform mat4 mMatrix;
     uniform mat4 vpMatrix;
 
     out vec2 ftexCoord;
     out vec4 ipNormal;
+    out vec4 ipBinormal;
+    out vec4 ipTangent;
+
     out vec4 rotPosition;
     void main() {
         ipNormal = mMatrix * vec4 (normal,0);
+        ipBinormal = mMatrix * vec4 (binormal,0);
+        ipTangent = mMatrix * vec4 (tangent,0);
         rotPosition= mMatrix * position;
         ftexCoord=texCoord;
         gl_Position= vpMatrix*rotPosition;
@@ -30,18 +37,26 @@
     in vec2 ftexCoord;
     in vec4 rotPosition;
     in vec4 ipNormal;
+    in vec4 ipBinormal;
+    in vec4 ipTangent;
     out vec4 fragColor;
     uniform sampler2D textureMap;
+    uniform sampler2D bumpMap;
     uniform vec4 ambientLight;
     uniform vec4 lightPosition;
     uniform vec4 lightIntensity;
     uniform vec3 camPos;
     void main() {
+        vec4 bumpColor= texture(bumpMap,ftexCoord);
+        vec4 bumpNormal= 2.0*bumpColor -1.0;
+        bumpNormal.w=0.0;
+        mat4 TBN = mat4 ( ipTangent,ipBinormal,normalize(ipNormal),vec4(0,0,0,1.0));
+        vec4 trueNormal = TBN*bumpNormal;
         vec4 lightDir=  normalize(rotPosition-lightPosition);
         vec4 viewDir= normalize(vec4(camPos,1.0) - rotPosition);
-        vec4 reflected =  reflect ( lightDir,normalize(ipNormal));
+        vec4 reflected =  reflect ( lightDir,trueNormal);
         vec4 light = ambientLight + lightIntensity * ( max(0.0,dot(lightDir
-        ,normalize(ipNormal))) +  pow(max(0.0,dot(reflected, viewDir)),4.0)  ) ;
+        ,trueNormal)) +  pow(max(0.0,dot(reflected, viewDir)),4.0) ) ;
         light.a= 1.0;
         fragColor= texture (textureMap, ftexCoord) * light;
     }
