@@ -1,0 +1,419 @@
+<html>
+<body onload="main()">
+
+<script type="vertex" id="svs">
+    #version 300 es
+    precision highp float;
+    in vec4 position;
+    uniform mat4 mvpMatrix;
+
+    void main() {
+        gl_Position= mvpMatrix*position;
+    }
+
+</script>
+
+<script type="fragment" id="sfs">
+    #version 300 es
+    precision highp float;
+    out vec4 fragColor;
+
+    void main() {
+        fragColor= vec4(gl_FragCoord.z,gl_FragCoord.z,gl_FragCoord.z,1.0);
+    }
+
+</script>
+<script type="vertex" id="vs">
+    #version 300 es
+    precision highp float;
+
+    in vec4 position;
+    in vec4 color;
+    in vec2 texCoord;
+    in vec3 normal;
+    in vec3 binormal;
+    in vec3 tangent;
+
+    uniform mat4 mMatrix;
+    uniform mat4 vpMatrix;
+    uniform mat4 lvpMatrix;
+
+    out vec2 ftexCoord;
+    out vec4 ipNormal;
+    out vec4 ipBinormal;
+    out vec4 ipTangent;
+    out vec4 lviewPosition;
+
+    out vec4 rotPosition;
+    void main() {
+        ipNormal = mMatrix * vec4 (normal,0);
+        ipBinormal = mMatrix * vec4 (binormal,0);
+        ipTangent = mMatrix * vec4 (tangent,0);
+        rotPosition= mMatrix * position;
+        ftexCoord=texCoord;
+        lviewPosition = lvpMatrix *position;
+        gl_Position= vpMatrix*rotPosition;
+    }
+</script>
+
+<script type="fragment" id="fs">
+    #version 300 es
+    precision highp float;
+
+    in vec2 ftexCoord;
+    in vec4 rotPosition;
+    in vec4 ipNormal;
+    in vec4 ipBinormal;
+    in vec4 ipTangent;
+    in vec4 lviewPosition;
+    out vec4 fragColor;
+    uniform sampler2D shadowMap;
+    uniform sampler2D textureMap;
+    uniform sampler2D bumpMap;
+    uniform vec4 ambientLight;
+    uniform vec4 lightPosition;
+    uniform vec4 lightIntensity;
+    uniform vec3 camPos;
+    void main() {
+        vec4 bumpColor= texture(bumpMap,ftexCoord);
+        vec4 bumpNormal= 2.0*bumpColor -1.0;
+        bumpNormal.w=0.0;
+        mat4 TBN = mat4 ( ipTangent,ipBinormal,normalize(ipNormal),vec4(0,0,0,1.0));
+        vec4 trueNormal = TBN*bumpNormal;
+        vec4 lightDir=  normalize(rotPosition-lightPosition);
+        vec4 viewDir= normalize(vec4(camPos,1.0) - rotPosition);
+        vec4 reflected =  reflect ( lightDir,trueNormal);
+        vec4 light = ambientLight + lightIntensity * ( max(0.0,dot(lightDir
+        ,trueNormal)) +  pow(max(0.0,dot(reflected, viewDir)),4.0) ) ;
+        light.a= 1.0;
+        fragColor= texture (shadowMap, ftexCoord) ;
+    }
+</script>
+
+
+<canvas id="webgl-canvas" width="1024" height="1024"> </canvas>
+<script type="text/javascript" src="Common/MV.js"></script>
+<script type="text/javascript" src="Common/initShaders.js"></script>
+<img id="texture" src="stone01.png" hidden  alt="ssd"/>
+<img id="bump" src="bump01.png" hidden  alt="sd"/>
+<script>
+    function main () {
+        let canvas = document.getElementById("webgl-canvas");
+        let aspect = canvas.width / canvas.height;
+        let gl = canvas.getContext("webgl2");
+        if (!gl) {
+            console.error("WebGL 2 not available");
+            document.body.innerHTML = "This example requires WebGL 2 which is unavailable on this system."
+        }
+        //gl.clearColor(0, 0, 0, 1);
+        gl.enable(gl.DEPTH_TEST);
+        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+
+        let sprogram =  initShaders(gl,"svs","sfs");
+        let program =  initShaders(gl,"vs","fs");
+        gl.useProgram(program);
+
+        //1. Defirnir os arrays de vertices
+        let vertex = [
+            vec4(-1, -1, 1, 1), //0
+            vec4(-1, 1, 1, 1),//1
+            vec4(1, 1, 1, 1),//2
+            vec4(1, -1, 1, 1),//3
+            vec4(-1, -1, -1, 1),//4
+            vec4(-1, 1, -1, 1),//5
+            vec4(1, 1, -1, 1),//6
+            vec4(1, -1, -1, 1),//7
+        ];
+        let vertexColors = [
+            vec4(0, 1, 0, 1),
+            vec4(1, 0, 0, 1),
+            vec4(0, 0, 1, 1),
+            vec4(1, 1, 1, 1),
+            vec4(1, 1, 0, 1),
+            vec4(0, 1, 1, 1),
+            vec4(1, 0, 1, 1),
+            vec4(0.5, 0.5, 0.5, 1)];
+
+        let texCoord = [
+            vec2(0, 0),
+            vec2(0, 2),
+            vec2(2, 2),
+            vec2(2, 0),
+        ]
+
+        let positionArray = [];
+        let colorArray = [];
+        let texCoordArray = [];
+        let normalArray = [];
+        let binormalArray = [];
+        let tangentArray = [];
+
+        function quad(a, b, c, d) {
+            let tangent = normalize(subtract(vertex[b], vertex[a]),true);
+            tangent = vec3( tangent[0],tangent[1],tangent[2]);
+            let binormal = normalize(subtract(vertex[c],vertex[b]),true);
+            binormal = vec3( binormal[0],binormal[1],binormal[2] );
+            let normal = cross(tangent,binormal);
+            positionArray.push(vertex[a]);
+            positionArray.push(vertex[b]);
+            positionArray.push(vertex[c]);
+            colorArray.push(vertexColors[a]);
+            colorArray.push(vertexColors[b]);
+            colorArray.push(vertexColors[c]);
+            texCoordArray.push(texCoord[0]);
+            texCoordArray.push(texCoord[1]);
+            texCoordArray.push(texCoord[2]);
+            normalArray.push(normal);
+            normalArray.push(normal);
+            normalArray.push(normal);
+            binormalArray.push(binormal);
+            binormalArray.push(binormal);
+            binormalArray.push(binormal);
+            tangentArray.push(tangent);
+            tangentArray.push(tangent);
+            tangentArray.push(tangent);
+
+            positionArray.push(vertex[a]);
+            positionArray.push(vertex[c]);
+            positionArray.push(vertex[d]);
+            colorArray.push(vertexColors[a]);
+            colorArray.push(vertexColors[c]);
+            colorArray.push(vertexColors[d]);
+            texCoordArray.push(texCoord[0]);
+            texCoordArray.push(texCoord[2]);
+            texCoordArray.push(texCoord[3]);
+            normalArray.push(normal);
+            normalArray.push(normal);
+            normalArray.push(normal);
+            binormalArray.push(binormal);
+            binormalArray.push(binormal);
+            binormalArray.push(binormal);
+            tangentArray.push(tangent);
+            tangentArray.push(tangent);
+            tangentArray.push(tangent);
+        }
+
+        quad(0, 1, 2, 3);
+        quad(3, 2, 6, 7);
+        quad(7, 6, 5, 4);
+        quad(4, 5, 1, 0);
+        quad(1, 5, 6, 2);
+        quad(4, 0, 3, 7);
+        //Triangulo 1
+        positionArray.push (vec4(0.0,1.0,2.0,1.0));
+        positionArray.push (vec4(0.25,0.5,2.0,1.0));
+        positionArray.push (vec4(-0.25,0.5,2.0,1.0));
+        texCoordArray.push(texCoord[0]);
+        texCoordArray.push(texCoord[1]);
+        texCoordArray.push(texCoord[2]);
+        normalArray.push(vec3(0.0,0.0,1.0));
+        normalArray.push(vec3(0.0,0.0,1.0));
+        normalArray.push(vec3(0.0,0.0,1.0));
+        binormalArray.push(vec3(0.0,1.0,0.0));
+        binormalArray.push(vec3(0.0,1.0,0.0));
+        binormalArray.push(vec3(0.0,1.0,0.0));
+        tangentArray.push(vec3(1.0,0.0,0.0));
+        tangentArray.push(vec3(1.0,0.0,0.0));
+        tangentArray.push(vec3(1.0,0.0,0.0));
+
+        //Triangulo 2
+
+        positionArray.push (vec4(-5,-2.0,-5.0,1.0));
+        positionArray.push (vec4(5,-2.0,-5.0,1.0));
+        positionArray.push (vec4(0,-2.0,5.0,1.0));
+        texCoordArray.push(texCoord[0]);
+        texCoordArray.push(texCoord[1]);
+        texCoordArray.push(texCoord[2]);
+        normalArray.push(vec3(0.0,1.0,0.0));
+        normalArray.push(vec3(0.0,1.0,0.0));
+        normalArray.push(vec3(0.0,1.0,0.0));
+        binormalArray.push(vec3(0.0,0.0,1.0));
+        binormalArray.push(vec3(0.0,0.0,1.0));
+        binormalArray.push(vec3(0.0,0.0,1.0));
+        tangentArray.push(vec3(1.0,0.0,0.0));
+        tangentArray.push(vec3(1.0,0.0,0.0));
+        tangentArray.push(vec3(1.0,0.0,0.0));
+
+        let shadowmap = gl.createTexture();
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, shadowmap);
+        gl.texImage2D(gl.TEXTURE_2D,0, gl.RGBA, 1024,1024,0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+        gl.generateMipmap(gl.TEXTURE_2D);
+        //gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.MIRRORED_REPEAT);         //espelhamento
+        //gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.MIRRORED_REPEAT);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR); //Trilinear
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+        const ext =
+            gl.getExtension("EXT_texture_filter_anisotropic") ||
+            gl.getExtension("MOZ_EXT_texture_filter_anisotropic") ||
+            gl.getExtension("WEBKIT_EXT_texture_filter_anisotropic");
+        if (ext) {
+            const max = gl.getParameter(ext.MAX_TEXTURE_MAX_ANISOTROPY_EXT);
+            gl.texParameterf(gl.TEXTURE_2D, ext.TEXTURE_MAX_ANISOTROPY_EXT, max);
+        }
+        gl.uniform1i(gl.getUniformLocation(program, "shadowMap"), 0);
+
+        let image = document.getElementById("texture");
+        let texture = gl.createTexture();
+        gl.activeTexture(gl.TEXTURE1);
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, image);
+        gl.generateMipmap(gl.TEXTURE_2D);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.MIRRORED_REPEAT);         //espelhamento
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.MIRRORED_REPEAT);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR); //Trilinear
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+        if (ext) {
+            const max = gl.getParameter(ext.MAX_TEXTURE_MAX_ANISOTROPY_EXT);
+            gl.texParameterf(gl.TEXTURE_2D, ext.TEXTURE_MAX_ANISOTROPY_EXT, max);
+        }
+        gl.uniform1i(gl.getUniformLocation(program, "textureMap"), 1); //mudei de 0 para 1 devido ao novo textureUnit
+
+        let bump = document.getElementById("bump");
+        let bumptexture = gl.createTexture();
+        gl.activeTexture(gl.TEXTURE2);
+        gl.bindTexture(gl.TEXTURE_2D, bumptexture);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, bump);
+        gl.generateMipmap(gl.TEXTURE_2D);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.MIRRORED_REPEAT);         //espelhamento
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.MIRRORED_REPEAT);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR); //Trilinear
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+        if (ext) {
+            const max = gl.getParameter(ext.MAX_TEXTURE_MAX_ANISOTROPY_EXT);
+            gl.texParameterf(gl.TEXTURE_2D, ext.TEXTURE_MAX_ANISOTROPY_EXT, max);
+        }
+        gl.uniform1i(gl.getUniformLocation(program, "bumpMap"), 2);
+
+        let spositionBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, spositionBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, flatten(positionArray), gl.STATIC_DRAW);
+        let spositionLoc = gl.getAttribLocation(sprogram, "position");
+        gl.vertexAttribPointer(spositionLoc, 4, gl.FLOAT, false, 0, 0);
+        gl.enableVertexAttribArray(spositionLoc);
+
+//3. Copiar para GPU
+        let positionBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, flatten(positionArray), gl.STATIC_DRAW);
+        let positionLoc = gl.getAttribLocation(program, "position");
+        gl.vertexAttribPointer(positionLoc, 4, gl.FLOAT, false, 0, 0);
+        gl.enableVertexAttribArray(positionLoc);
+
+        let colorBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, flatten(colorArray), gl.STATIC_DRAW)
+        let colorLoc = gl.getAttribLocation(program, "color");
+        gl.vertexAttribPointer(colorLoc, 4, gl.FLOAT, false, 0, 0);
+        gl.enableVertexAttribArray(colorLoc);
+
+        let texCoordBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, texCoordBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, flatten(texCoordArray), gl.STATIC_DRAW)
+        let texCoordLoc = gl.getAttribLocation(program, "texCoord");
+        gl.vertexAttribPointer(texCoordLoc, 2, gl.FLOAT, false, 0, 0);
+        gl.enableVertexAttribArray(texCoordLoc);
+
+        let normalBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, normalBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, flatten(normalArray), gl.STATIC_DRAW)
+        let normalLoc = gl.getAttribLocation(program, "normal");
+        gl.vertexAttribPointer(normalLoc, 3, gl.FLOAT, false, 0, 0);
+        gl.enableVertexAttribArray(normalLoc);
+
+        let binormalBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, binormalBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, flatten(binormalArray), gl.STATIC_DRAW)
+        let binormalLoc = gl.getAttribLocation(program, "binormal");
+        gl.vertexAttribPointer(binormalLoc, 3, gl.FLOAT, false, 0, 0);
+        gl.enableVertexAttribArray(binormalLoc);
+
+        let tangentBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, tangentBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, flatten(tangentArray), gl.STATIC_DRAW)
+        let tangentLoc = gl.getAttribLocation(program, "tangent");
+        gl.vertexAttribPointer(tangentLoc, 3, gl.FLOAT, false, 0, 0);
+        gl.enableVertexAttribArray(tangentLoc);
+
+        let framebuffer = gl.createFramebuffer();
+        gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
+        framebuffer.width= canvas.width;
+        framebuffer.height = canvas.height;
+
+        let renderbuffer = gl.createRenderbuffer();
+        gl.bindRenderbuffer(gl.RENDERBUFFER,renderbuffer);
+        gl.renderbufferStorage(gl.RENDERBUFFER,gl.DEPTH_COMPONENT16,canvas.width,canvas.height);
+        gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,shadowmap,0);
+        gl.framebufferRenderbuffer(gl.FRAMEBUFFER,gl.DEPTH_ATTACHMENT,gl.RENDERBUFFER, renderbuffer);
+
+
+        //Luz
+        const ambientLight = vec4(0.3,0.3,0.3,1);
+        const lightPosition = vec4 (0,0,4,1);
+        const lightIntensity= vec4 (1.2,1.2,1.2,1);
+        let lviewMatrix = lookAt(vec3(lightPosition[0],lightPosition[1],lightPosition[2]),
+            vec3(0, 0, 0), vec3(0, 1, 0));
+        let lprojectMatrix = perspective(45, aspect, 1, 20);
+        let lviewProjection = mult(lprojectMatrix, lviewMatrix);
+        gl.uniform4fv( gl.getUniformLocation(program, "ambientLight"), ambientLight);
+        gl.uniform4fv( gl.getUniformLocation(program, "lightPosition"), lightPosition);
+        gl.uniform4fv( gl.getUniformLocation(program, "lightIntensity"), lightIntensity);
+        ////////////////
+        // DRAW
+        ////////////////
+
+        let eye = vec3(7, 1, 3.5), target = vec3(0, 0, 0), up = vec3(0, 1, 0);
+        let viewMatrix = lookAt(eye, target, up);
+        let projectMatrix = perspective(45, aspect, 1, 12);
+        let viewProjection = mult(projectMatrix, viewMatrix);
+        let vpLoc = gl.getUniformLocation(program, "vpMatrix");
+        let mLoc = gl.getUniformLocation(program, "mMatrix");
+        let lvpm = gl.getUniformLocation(program, "lvpMatrix");
+        gl.uniformMatrix4fv(vpLoc, false, flatten(viewProjection));
+        gl.uniform3fv( gl.getUniformLocation(program, "camPos"), eye);
+        let i = 0;
+        let translation = translate(0, 0, 0);
+        let scalem = scale(1.0, 1.0, 1.0);
+
+        let render = function () {
+            gl.clearColor(1.0,1.0,1.0,1.0);
+            gl.bindRenderbuffer(gl.RENDERBUFFER,renderbuffer);
+            gl.bindFramebuffer(gl.FRAMEBUFFER,framebuffer);
+            gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+            i = (i + 0.5) % 360;
+            let modelMatrix = mult(translation, mult(scalem, rotateY(i)));
+            gl.useProgram(sprogram);
+            let lmodelviewProjection =mult(lviewProjection,modelMatrix);
+            gl.uniformMatrix4fv(gl.getUniformLocation(sprogram, "mvpMatrix"), false, flatten(lmodelviewProjection));
+            gl.drawArrays(gl.TRIANGLES, 0, 36);
+            gl.uniformMatrix4fv(gl.getUniformLocation(sprogram, "mvpMatrix"), false, flatten(lviewProjection));
+            gl.drawArrays(gl.TRIANGLES, 36, 6);
+            gl.bindFramebuffer(gl.FRAMEBUFFER,null);
+            gl.bindRenderbuffer(gl.RENDERBUFFER,null);
+
+            gl.useProgram(program);
+            gl.activeTexture(gl.TEXTURE0);
+            gl.uniform1i(gl.getUniformLocation(program,"shadowmap"),0);
+            gl.activeTexture(gl.TEXTURE1);
+            gl.uniform1i(gl.getUniformLocation(program,"textureMap"),1);
+            gl.activeTexture(gl.TEXTURE2);
+            gl.uniform1i(gl.getUniformLocation(program,"bumpMap"),2);
+            gl.clearColor(0.5,0.5,0.5,1.0);
+            gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+            gl.uniformMatrix4fv(lvpm, false, flatten(lmodelviewProjection));
+            gl.uniformMatrix4fv(mLoc, false, flatten(modelMatrix));
+            gl.drawArrays(gl.TRIANGLES, 0, 36);
+            gl.uniformMatrix4fv(mLoc, false, flatten(rotateY(0)));
+            gl.uniformMatrix4fv(lvpm, false, flatten(lviewProjection));
+            gl.drawArrays(gl.TRIANGLES, 36, 6);
+
+            requestAnimationFrame(render);
+        }
+
+        render();
+    }
+</script>
+
+</body>
+
+</html>
