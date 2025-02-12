@@ -77,16 +77,23 @@
     void main() {
         vec4 bumpColor= texture(bumpMap,ftexCoord);
         vec4 bumpNormal= 2.0*bumpColor -1.0;
-        bumpNormal.w=0.0;
-        mat4 TBN = mat4 ( ipTangent,ipBinormal,normalize(ipNormal),vec4(0,0,0,1.0));
-        vec4 trueNormal = TBN*bumpNormal;
-        vec4 lightDir=  normalize(rotPosition-lightPosition);
-        vec4 viewDir= normalize(vec4(camPos,1.0) - rotPosition);
-        vec4 reflected =  reflect ( lightDir,trueNormal);
-        vec4 light = ambientLight + lightIntensity * ( max(0.0,dot(lightDir
-        ,trueNormal)) +  pow(max(0.0,dot(reflected, viewDir)),4.0) ) ;
-        light.a= 1.0;
-        fragColor= texture (shadowMap, ftexCoord) ;
+        vec3 shadowCoord = 0.5*lviewPosition.xyz/lviewPosition.w + 0.5;
+        float depth = texture (shadowMap,shadowCoord.xy).r;
+        if ( shadowCoord.z  -0.002 <  depth )
+        {
+            bumpNormal.w=0.0;
+            mat4 TBN = mat4 ( ipTangent,ipBinormal,normalize(ipNormal),vec4(0,0,0,1.0));
+            vec4 trueNormal = TBN*bumpNormal;
+            vec4 lightDir=  normalize(rotPosition-lightPosition);
+            vec4 viewDir= normalize(vec4(camPos,1.0) - rotPosition);
+            vec4 reflected =  reflect ( lightDir,trueNormal);
+            vec4 light = ambientLight + lightIntensity * ( max(0.0,dot(lightDir
+            ,trueNormal)) +  pow(max(0.0,dot(reflected, viewDir)),4.0) ) ;
+            light.a= 1.0;
+            fragColor= texture (textureMap, ftexCoord) * light;
+        } else {
+            fragColor= texture (textureMap, ftexCoord) * ambientLight;
+        }
     }
 </script>
 
@@ -139,7 +146,7 @@
             vec2(0, 2),
             vec2(2, 2),
             vec2(2, 0),
-        ]
+        ];
 
         let positionArray = [];
         let colorArray = [];
@@ -224,9 +231,9 @@
         texCoordArray.push(texCoord[0]);
         texCoordArray.push(texCoord[1]);
         texCoordArray.push(texCoord[2]);
-        normalArray.push(vec3(0.0,1.0,0.0));
-        normalArray.push(vec3(0.0,1.0,0.0));
-        normalArray.push(vec3(0.0,1.0,0.0));
+        normalArray.push(vec3(0.0,-1.0,0.0));
+        normalArray.push(vec3(0.0,-1.0,0.0));
+        normalArray.push(vec3(0.0,-1.0,0.0));
         binormalArray.push(vec3(0.0,0.0,1.0));
         binormalArray.push(vec3(0.0,0.0,1.0));
         binormalArray.push(vec3(0.0,0.0,1.0));
@@ -238,11 +245,10 @@
         gl.activeTexture(gl.TEXTURE0);
         gl.bindTexture(gl.TEXTURE_2D, shadowmap);
         gl.texImage2D(gl.TEXTURE_2D,0, gl.RGBA, 1024,1024,0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-        gl.generateMipmap(gl.TEXTURE_2D);
-        //gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.MIRRORED_REPEAT);         //espelhamento
-        //gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.MIRRORED_REPEAT);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR); //Trilinear
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); //sem MipMap em shadowMap
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
         const ext =
             gl.getExtension("EXT_texture_filter_anisotropic") ||
             gl.getExtension("MOZ_EXT_texture_filter_anisotropic") ||
@@ -262,7 +268,7 @@
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.MIRRORED_REPEAT);         //espelhamento
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.MIRRORED_REPEAT);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR); //Trilinear
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
         if (ext) {
             const max = gl.getParameter(ext.MAX_TEXTURE_MAX_ANISOTROPY_EXT);
             gl.texParameterf(gl.TEXTURE_2D, ext.TEXTURE_MAX_ANISOTROPY_EXT, max);
@@ -278,19 +284,12 @@
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.MIRRORED_REPEAT);         //espelhamento
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.MIRRORED_REPEAT);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR); //Trilinear
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
         if (ext) {
             const max = gl.getParameter(ext.MAX_TEXTURE_MAX_ANISOTROPY_EXT);
             gl.texParameterf(gl.TEXTURE_2D, ext.TEXTURE_MAX_ANISOTROPY_EXT, max);
         }
         gl.uniform1i(gl.getUniformLocation(program, "bumpMap"), 2);
-
-        let spositionBuffer = gl.createBuffer();
-        gl.bindBuffer(gl.ARRAY_BUFFER, spositionBuffer);
-        gl.bufferData(gl.ARRAY_BUFFER, flatten(positionArray), gl.STATIC_DRAW);
-        let spositionLoc = gl.getAttribLocation(sprogram, "position");
-        gl.vertexAttribPointer(spositionLoc, 4, gl.FLOAT, false, 0, 0);
-        gl.enableVertexAttribArray(spositionLoc);
 
 //3. Copiar para GPU
         let positionBuffer = gl.createBuffer();
@@ -302,35 +301,35 @@
 
         let colorBuffer = gl.createBuffer();
         gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
-        gl.bufferData(gl.ARRAY_BUFFER, flatten(colorArray), gl.STATIC_DRAW)
+        gl.bufferData(gl.ARRAY_BUFFER, flatten(colorArray), gl.STATIC_DRAW);
         let colorLoc = gl.getAttribLocation(program, "color");
         gl.vertexAttribPointer(colorLoc, 4, gl.FLOAT, false, 0, 0);
         gl.enableVertexAttribArray(colorLoc);
 
         let texCoordBuffer = gl.createBuffer();
         gl.bindBuffer(gl.ARRAY_BUFFER, texCoordBuffer);
-        gl.bufferData(gl.ARRAY_BUFFER, flatten(texCoordArray), gl.STATIC_DRAW)
+        gl.bufferData(gl.ARRAY_BUFFER, flatten(texCoordArray), gl.STATIC_DRAW);
         let texCoordLoc = gl.getAttribLocation(program, "texCoord");
         gl.vertexAttribPointer(texCoordLoc, 2, gl.FLOAT, false, 0, 0);
         gl.enableVertexAttribArray(texCoordLoc);
 
         let normalBuffer = gl.createBuffer();
         gl.bindBuffer(gl.ARRAY_BUFFER, normalBuffer);
-        gl.bufferData(gl.ARRAY_BUFFER, flatten(normalArray), gl.STATIC_DRAW)
+        gl.bufferData(gl.ARRAY_BUFFER, flatten(normalArray), gl.STATIC_DRAW);
         let normalLoc = gl.getAttribLocation(program, "normal");
         gl.vertexAttribPointer(normalLoc, 3, gl.FLOAT, false, 0, 0);
         gl.enableVertexAttribArray(normalLoc);
 
         let binormalBuffer = gl.createBuffer();
         gl.bindBuffer(gl.ARRAY_BUFFER, binormalBuffer);
-        gl.bufferData(gl.ARRAY_BUFFER, flatten(binormalArray), gl.STATIC_DRAW)
+        gl.bufferData(gl.ARRAY_BUFFER, flatten(binormalArray), gl.STATIC_DRAW);
         let binormalLoc = gl.getAttribLocation(program, "binormal");
         gl.vertexAttribPointer(binormalLoc, 3, gl.FLOAT, false, 0, 0);
         gl.enableVertexAttribArray(binormalLoc);
 
         let tangentBuffer = gl.createBuffer();
         gl.bindBuffer(gl.ARRAY_BUFFER, tangentBuffer);
-        gl.bufferData(gl.ARRAY_BUFFER, flatten(tangentArray), gl.STATIC_DRAW)
+        gl.bufferData(gl.ARRAY_BUFFER, flatten(tangentArray), gl.STATIC_DRAW);
         let tangentLoc = gl.getAttribLocation(program, "tangent");
         gl.vertexAttribPointer(tangentLoc, 3, gl.FLOAT, false, 0, 0);
         gl.enableVertexAttribArray(tangentLoc);
@@ -393,7 +392,7 @@
 
             gl.useProgram(program);
             gl.activeTexture(gl.TEXTURE0);
-            gl.uniform1i(gl.getUniformLocation(program,"shadowmap"),0);
+            gl.uniform1i(gl.getUniformLocation(program,"shadowMap"),0);
             gl.activeTexture(gl.TEXTURE1);
             gl.uniform1i(gl.getUniformLocation(program,"textureMap"),1);
             gl.activeTexture(gl.TEXTURE2);
