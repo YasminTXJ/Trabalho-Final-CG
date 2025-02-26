@@ -38,8 +38,19 @@
 				});
 
 		const loader = new GLTFLoader().setPath('../porshe/');
+		let roda;
 		loader.load( 'scene.gltf',
 				gltf  => {
+					gltf.parser.getDependencies('mesh').then( mesh=>{
+						roda=mesh[62];
+					} )
+					gltf.scene.traverse(o=>{
+						if (o.isMesh) {
+							let prevmat= o.material;
+							o.material= new THREE.MeshPhongMaterial();
+							THREE.MeshBasicMaterial.prototype.copy.call(o.material,prevmat);
+						}
+					})
 					scene.add(gltf.scene)
 				}
 		);
