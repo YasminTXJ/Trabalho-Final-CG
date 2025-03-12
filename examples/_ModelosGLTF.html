@@ -15,6 +15,8 @@
 
 	let camera, scene, renderer ,controls;
 	const clock = new THREE.Clock();
+	let roda=null;
+	let pneu=null;
 	init();
 
 	function init() {
@@ -38,10 +40,12 @@
 				});
 
 		const loader = new GLTFLoader().setPath('../porshe/');
-		let roda;
+
 		loader.load( 'scene.gltf',
 				gltf  => {
 					gltf.parser.getDependencies('mesh').then( mesh=>{
+						console.log(mesh);
+						pneu=mesh[63];
 						roda=mesh[62];
 					} )
 					gltf.scene.traverse(o=>{
@@ -71,9 +75,15 @@
 		renderer.setSize( window.innerWidth, window.innerHeight );
 		controls.handleResize();
 	}
-
+	let i=0;
 	function render() {
-		controls.update(clock.getDelta());
+		let  delta=clock.getDelta();
+		i= (i + delta/10) % 360;
+		if ( roda !== null)
+			roda.rotateX (THREE.Math.degToRad(i));
+		if ( pneu !== null)
+			pneu.rotateX (THREE.Math.degToRad(i));
+		controls.update(delta);
 		renderer.render( scene, camera );
 	}
 
