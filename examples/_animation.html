@@ -51,8 +51,8 @@
         if (scene_skel){
             const mesh_obj= scene_skel.getObjectByName(model.meshName);
             if (mesh_obj) {
-                mixers = startAnimation(mesh_obj, model.animations, model.animationName);
-                
+                //mixers = startAnimation(mesh_obj, model.animations, model.animationName);
+                mixers = startCrossFadeAnimation(mesh_obj, model.animations, 'Walk','Run');
                 worldScene.add(scene_skel);
                 scene_skel.position.set(model.position.x,model.position.y,model.position.z);
                 scene_skel.scale.set(model.scale,model.scale,model.scale);
@@ -60,6 +60,19 @@
         }
     }
 
+    function startCrossFadeAnimation( skinnedMesh, animations, initial_animation,final_animation ) {
+        const mixer = new THREE.AnimationMixer(skinnedMesh);
+        const clip_start = THREE.AnimationClip.findByName(animations,initial_animation);
+        const clip_end = THREE.AnimationClip.findByName(animations,final_animation);
+        if (clip_start && clip_end){
+            const action1 = mixer.clipAction(clip_start);
+            const action2 = mixer.clipAction(clip_end);
+            action1.crossFadeTo(action2,3,true);
+            action1.play();
+            action2.play();
+        }
+        return mixer;
+    }
     function startAnimation( skinnedMesh, animations, animationName ) {
         const mixer = new THREE.AnimationMixer(skinnedMesh);
         const clip = THREE.AnimationClip.findByName(animations,animationName);
