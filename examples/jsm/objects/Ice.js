@@ -32,12 +32,12 @@ class Ice extends Mesh {
 
 		const scope = this;
 
-		const color = ( options.color !== undefined ) ? new Color( options.color ) : new Color( 0xFFFFFF );
+		const color = ( options.color !== undefined ) ? new Color( options.color ) : new Color( 0xc9eefb );
 		const textureWidth = options.textureWidth || 512;
 		const textureHeight = options.textureHeight || 512;
 		const clipBias = options.clipBias || 0;
 		const flowDirection = options.flowDirection || new Vector2( 1, 0 );
-		const flowSpeed = options.flowSpeed || 0.03;
+		
 		const reflectivity = options.reflectivity || 0.02;
 		const scale = options.scale || 1;
 		const shader = options.shader || Ice.IceShader;
@@ -52,7 +52,7 @@ class Ice extends Mesh {
 		const cycle = 0.15; // a cycle of a flow map phase
 		const halfCycle = cycle * 0.5;
 		const textureMatrix = new Matrix4();
-		const clock = new Clock();
+	
 
 		// internal components
 
@@ -99,7 +99,10 @@ class Ice extends Mesh {
 			transparent: true,
 			fog: true
 		} );
-
+		this.material.uniforms[ 'refractionIndex' ] = {
+			type: 'f',
+			value: 0.06 // Índice de refração da água (1.33) ou do gelo (~1.31)
+		};
 		if ( flowMap !== undefined ) {
 
 			this.material.defines.USE_FLOWMAP = '';
@@ -157,37 +160,14 @@ class Ice extends Mesh {
 
 		}
 
-		function updateFlow() {
-
-			const delta = clock.getDelta();
-			const config = scope.material.uniforms[ 'config' ];
-
-			config.value.x += flowSpeed * delta; // flowMapOffset0
-			config.value.y = config.value.x + halfCycle; // flowMapOffset1
-
-			// Important: The distance between offsets should be always the value of "halfCycle".
-			// Moreover, both offsets should be in the range of [ 0, cycle ].
-			// This approach ensures a smooth Ice flow and avoids "reset" effects.
-
-			if ( config.value.x >= cycle ) {
-
-				config.value.x = 0;
-				config.value.y = halfCycle;
-
-			} else if ( config.value.y >= cycle ) {
-
-				config.value.y = config.value.y - cycle;
-
-			}
-
-		}
+		
 
 		//
 
 		this.onBeforeRender = function ( renderer, scene, camera ) {
 
 			updateTextureMatrix( camera );
-			updateFlow();
+			
 
 			scope.visible = false;
 
@@ -300,6 +280,7 @@ Ice.IceShader = {
 
 		uniform vec3 color;
 		uniform float reflectivity;
+		uniform float refractionIndex; // Índice de refração
 		uniform vec4 config;
 
 		varying vec4 vCoord;
@@ -343,8 +324,8 @@ Ice.IceShader = {
 
 			// calculate final uv coords
 			vec3 coord = vCoord.xyz / vCoord.w;
-			vec2 uv = coord.xy + coord.z * normal.xz * 0.05;
-
+			//vec2 uv = coord.xy + coord.z * normal.xz * 0.05;
+			vec2 uv = coord.xy + coord.z * normal.xz * (refractionIndex);
 			vec4 reflectColor = texture2D( tReflectionMap, vec2( 1.0 - uv.x, uv.y ) );
 			vec4 refractColor = texture2D( tRefractionMap, uv );
 
