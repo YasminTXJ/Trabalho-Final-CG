@@ -20,16 +20,27 @@
       },
       vertexShader: `
         out vec2 vUv;
+        out vec3 vWorldPosition;
         void main() {
           vUv = uv;
+          vWorldPosition = (modelMatrix * vec4(position, 1.0)).xyz;
           gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
         }
       `,
       fragmentShader: `
         in vec2 vUv;
+        in vec3 vWorldPosition;
+        uniform bool reflecting;
+        uniform bool refracting;
         uniform sampler2D cubeTexture;
         out vec4 outColor;
         void main() {
+          if (vWorldPosition.x< 0.0 && reflecting) {
+              discard;
+          }
+          if (vWorldPosition.x> 0.0 && refracting) {
+              discard;
+          }
           outColor = texture(cubeTexture, vUv);
         }
       `
@@ -109,12 +120,12 @@
           vec4 behindColor = texture(refractedTexture, refractedUv);
 
           // Mistura de refração (cena atrás) com transparência da textura base
-          vec4 refractionMix = mix(transColor, behindColor, 0.4); // % da cena refratada
+          vec4 refractionMix = mix(transColor, behindColor, 0.6); // % da cena refratada
 
           vec4 fresnelMix = mix(refractionMix, reflColor, vReflectionFactor);
 
-          //vec4 finalColor = mix(fresnelMix, planeTexColor, 0.2); // % textura da superfície
-          vec4 finalColor = reflColor;
+          vec4 finalColor = mix(fresnelMix, planeTexColor, 0.7); // % textura da superfície
+         
           // Aplicar transparência
           finalColor.a *= transparency;
 
@@ -127,7 +138,7 @@
     // Inicialização da cena e renderização
     // =======================================================================
     let scene, camera, renderer, controls,cube1,cube2;
-    let dividingPlane;
+    let dividingPlane,cubeMaterial ;
     let transparentRT, reflectedRT, refratedRT;
     let clipPlaneTransparent, clipPlaneReflected;
     let reflectionCamera;
@@ -172,8 +183,10 @@
 
       // Criação dos cubos
       const cubeGeometry = new THREE.BoxGeometry(1, 1, 1);
-      const cubeMaterial = new THREE.ShaderMaterial({
+      cubeMaterial = new THREE.ShaderMaterial({
         uniforms: {
+          reflecting: { value: false },
+          refracting: { value: false },
           cubeTexture: { value: textureLoader.load('./textures/cube/Carbon.png') }
         },
         vertexShader: CustomCubeShader.vertexShader,
@@ -253,7 +266,7 @@
 
       // Primeiro passe: renderiza cena transparente
       dividingPlane.visible = false;
-      renderer.clippingPlanes = [clipPlaneTransparent];
+      //renderer.clippingPlanes = [clipPlaneTransparent];
       renderer.setRenderTarget(transparentRT);
       renderer.clear();
       renderer.render(scene, camera);
@@ -266,6 +279,8 @@
       const distance = camToPlane.dot(mirrorNormal);
       const reflectedPos = camera.position.clone().sub(mirrorNormal.clone().multiplyScalar(2 * distance));
 
+      cubeMaterial.uniforms.reflecting.value = true;
+      cubeMaterial.uniforms.refracting.value = false;
       // Reflete o ponto para onde a câmera está olhando
       const camTarget = new THREE.Vector3();
       camera.getWorldDirection(camTarget);
@@ -296,12 +311,17 @@
 
 
       // Terceiro passO: renderiza cena atrás do plano
+      // Ao renderizar o objeto refratado
+      cubeMaterial.uniforms.reflecting.value = false;
+      cubeMaterial.uniforms.refracting.value = true;
       renderer.setRenderTarget(refratedRT);
       renderer.clear();
       renderer.render(scene, camera);
       dividingPlane.visible = true;
 
       // Quarto passO: renderiza cena final
+      cubeMaterial.uniforms.reflecting.value = false;
+      cubeMaterial.uniforms.refracting.value = false;
       renderer.setRenderTarget(null);
       renderer.clippingPlanes = [];
       dividingPlane.material.uniforms.transparentTexture.value = transparentRT.texture;
