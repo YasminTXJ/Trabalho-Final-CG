@@ -8,42 +8,12 @@
   <script type="module">
     import * as THREE from '../build/three.module.js';
     import { OrbitControls } from './jsm/controls/OrbitControls.js';
-    //import { FirstPersonControls } from "./jsm/controls/FirstPersonControls.js";
     import { GLTFLoader } from './jsm/loaders/GLTFLoader.js';
     import { RGBELoader } from './jsm/loaders/RGBELoader.js';
 
     // =======================================================================
     // Shaders
     // =======================================================================
-    const BehindPlaneShader = {
-      uniforms: {
-        "planePosition": { value: new THREE.Vector3(0, 0, 0) }, // Posição do plano
-        "planeNormal": { value: new THREE.Vector3(0, 1, 0) },   // Normal do plano
-        "sceneTexture": { value: null } // Textura da cena renderizada
-      },
-      vertexShader: `
-        out vec3 vWorldPosition;
-        void main() {
-          vWorldPosition = (modelMatrix * vec4(position, 1.0)).xyz;
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-        }
-      `,
-      fragmentShader: `
-        in vec3 vWorldPosition;
-        uniform vec3 planePosition;
-        uniform vec3 planeNormal;
-        uniform sampler2D sceneTexture;
-        out vec4 fragColor;
-        void main() {
-          // Verifica se o fragmento está na frente do plano
-          if (dot(vWorldPosition - planePosition, planeNormal) > 0.0) {
-            discard; // Descarta fragmentos na frente do plano
-          }
-          fragColor = texture(sceneTexture, gl_FragCoord.xy / vec2(800.0, 600.0)); // Ajuste a resolução conforme necessário
-        }
-      `
-    };
-
     const CustomCubeShader = {
       uniforms: {
         cubeTexture: { value: null } // Textura padrão para os cubos
@@ -67,15 +37,15 @@
 
     const CustomFresnelShader = {
       uniforms: {
-        "mFresnelBias": { value: 0.05 },
-        "mFresnelPower": { value: 1.0 },
-        "mFresnelScale": { value: 0.5 },
+        "mFresnelBias": { value: 0.1 },//Controla o mínimo de reflexão quando se olha direto para a superfície (ângulo reto).Quanto maior o bias, mais reflexo vai aparecer até mesmo em ângulos frontais.
+        "mFresnelPower": { value: 1.0 },//Controla como rápido o reflexo aumenta com o ângulo de visão
+        "mFresnelScale": { value: 0.8 },//Escala o quanto o efeito de Fresnel influencia na reflexão.
         "transparency": { value: 2.0 },
         "transparentTexture": { value: null },
         "reflectedTexture": { value: null },
         "planeTexture": { value: null },
-        "sceneTexture": { value: null } ,// Nova textura para a cena atrás do plano
-        "refractionRatio": { value: 1.0 / 1.31 } // Índice de refração 
+        "refractedTexture": { value: null },// Nova textura para a cena atrás do plano
+        "refractionRatio": { value: 1.0 / 1.31 } // Índice de refração (ar/água = 1.0/1.33)
       },
       vertexShader: `
         out vec2 vUv;
@@ -83,8 +53,11 @@
         uniform float mFresnelBias;
         uniform float mFresnelPower;
         uniform float mFresnelScale;
+        uniform float refractionRatio; // Índice de refração
         out vec3 vWorldPosition;
         out vec3 vNormal;
+        out vec2 refractedUv;
+        out vec4 projected;
         void main() {
           vUv = uv;
           vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
@@ -94,47 +67,56 @@
           vNormal = normalize(mat3(modelMatrix) * normal);
           vReflectionFactor = mFresnelBias + mFresnelScale * pow(1.0 + dot(normalize(I), vNormal), mFresnelPower);
           gl_Position = projectionMatrix * mvPosition;
+
+          // Vetor refratado
+          vec3 refracted = refract(I, vNormal, refractionRatio);
+
+          // Vetor de refração (direção do raio que atravessa o plano)
+          vec3 refractDir = normalize(refract(I, vNormal, refractionRatio));
+
+          // Ponto estimado de onde o raio refratado vai atingir "atrás" do plano
+          vec3 refractedPoint = vWorldPosition + refractDir * 5.0; 
+
+          // Projeta o ponto no espaço de tela
+          projected = projectionMatrix * viewMatrix * vec4(refractedPoint, 1.0);
+
         }
       `,
       fragmentShader: `
         uniform sampler2D transparentTexture;
         uniform sampler2D reflectedTexture;
         uniform sampler2D planeTexture;
-        uniform sampler2D sceneTexture;
+        uniform sampler2D refractedTexture;
         uniform float transparency;
-        uniform float refractionRatio; // Índice de refração
+
         in vec2 vUv;
         in float vReflectionFactor;
         in vec3 vWorldPosition;
         in vec3 vNormal;
+        in vec4 projected;
+
         out vec4 fragColor;
+
         void main() {
           if (vWorldPosition.y < -2.0) discard;
-          // Vetor de incidência
-          vec3 I = normalize(vWorldPosition - cameraPosition);
 
-          // Vetor normal
-          vec3 N = normalize(vNormal);
-
-          // Vetor refratado
-          vec3 refracted = refract(I, N, refractionRatio);
-
-          // Ajusta as coordenadas de textura
-          vec2 refractedUv = vUv + refracted.xy * 0.1;
-
-
-          vec4 transColor = texture(transparentTexture, vUv);
-          vec4 reflColor = texture(reflectedTexture, vUv);
-		  //vec4 reflColor = texture(reflectedTexture, vec2(1.0 - vUv.x, vUv.y));
+          vec2 refractedUv = projected.xy / projected.w * 0.5 + 0.5;
+          
+          // Sample textures
+          vec4 transColor = texture(transparentTexture, refractedUv);
+          vec4 reflColor = texture(reflectedTexture, vec2(1.0 - vUv.x, vUv.y));
           vec4 planeTexColor = texture(planeTexture, vUv);
-          vec4 behindPlaneColor = texture(sceneTexture,  vUv);
+          vec4 behindColor = texture(refractedTexture, refractedUv);
 
-          float blendFactor = smoothstep(-0.2, 0.2, vWorldPosition.x);
-          float mixFactor = mix(vReflectionFactor, 1.0 - vReflectionFactor, blendFactor);
-          vec4 finalColor = mix(transColor, reflColor, clamp(mixFactor * 0.5, 0.0, 1.0));
-          finalColor = mix(finalColor, planeTexColor, 4.0);
-          finalColor = mix(finalColor, behindPlaneColor, 0.8);
+          // Mistura de refração (cena atrás) com transparência da textura base
+          vec4 refractionMix = mix(transColor, behindColor, 0.4); // % da cena refratada
+
+          vec4 fresnelMix = mix(refractionMix, reflColor, vReflectionFactor);
+
+          vec4 finalColor = mix(fresnelMix, planeTexColor, 0.2); // % textura da superfície
+          // Aplicar transparência
           finalColor.a *= transparency;
+
           fragColor = finalColor;
         }
       `
@@ -143,9 +125,9 @@
     // =======================================================================
     // Inicialização da cena e renderização
     // =======================================================================
-    let scene, camera, renderer, controls;
+    let scene, camera, renderer, controls,cube1,cube2;
     let dividingPlane;
-    let transparentRT, reflectedRT, behindPlaneRT;
+    let transparentRT, reflectedRT, refratedRT;
     let clipPlaneTransparent, clipPlaneReflected;
 
     init();
@@ -183,14 +165,13 @@
 				scene.add( directionalLight );
 
 
-
       const textureLoader = new THREE.TextureLoader();
 
       // Criação dos cubos
       const cubeGeometry = new THREE.BoxGeometry(1, 1, 1);
       const cubeMaterial = new THREE.ShaderMaterial({
         uniforms: {
-          cubeTexture: { value: textureLoader.load('./textures/cube/brick_bump.jpg') }
+          cubeTexture: { value: textureLoader.load('./textures/cube/Carbon.png') }
         },
         vertexShader: CustomCubeShader.vertexShader,
         fragmentShader: CustomCubeShader.fragmentShader,
@@ -198,11 +179,11 @@
         clipping: true
       });
 
-      const cube1 = new THREE.Mesh(cubeGeometry, cubeMaterial);
+      cube1 = new THREE.Mesh(cubeGeometry, cubeMaterial);
       cube1.position.set(-4, 0, 0);
       scene.add(cube1);
 
-      const cube2 = new THREE.Mesh(cubeGeometry, cubeMaterial);
+      cube2 = new THREE.Mesh(cubeGeometry, cubeMaterial);
       cube2.position.set(4, 0, 0);
       scene.add(cube2);
 
@@ -219,7 +200,7 @@
         format: THREE.RGBAFormat
       });
 
-      behindPlaneRT = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, {
+      refratedRT = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, {
         minFilter: THREE.LinearFilter,
         magFilter: THREE.LinearFilter,
         format: THREE.RGBAFormat
@@ -227,7 +208,7 @@
 
       // Clipping planes
       clipPlaneTransparent = new THREE.Plane(new THREE.Vector3(1, 0, 0), 0.2);
-      clipPlaneReflected = new THREE.Plane(new THREE.Vector3(1, 0, 0), -0.2);
+      clipPlaneReflected = new THREE.Plane(new THREE.Vector3(-1, 0,0), 0.3);
 
       // Plano divisor
       const planeGeometry = new THREE.PlaneGeometry(6, 6);
@@ -258,12 +239,14 @@
       renderer.setSize(window.innerWidth, window.innerHeight);
       transparentRT.setSize(window.innerWidth, window.innerHeight);
       reflectedRT.setSize(window.innerWidth, window.innerHeight);
-      behindPlaneRT.setSize(window.innerWidth, window.innerHeight);
+      refratedRT.setSize(window.innerWidth, window.innerHeight);
     }
 
     function animate() {
       requestAnimationFrame(animate);
       controls.update();
+      cube2.rotation.x += 0.01;
+      cube2.rotation.y += 0.01;
 
       // Primeiro passe: renderiza cena transparente
       dividingPlane.visible = false;
@@ -273,24 +256,27 @@
       renderer.render(scene, camera);
 
       // Segundo passe: renderiza cena refletida
-      renderer.clippingPlanes = [clipPlaneReflected];
       renderer.setRenderTarget(reflectedRT);
+      const clippingPlanes = [
+               new THREE.Plane(new THREE.Vector3(-1, 0, 0), 1) // Clipping para objetos atrás do espelho
+           ];
+      renderer.clippingPlanes = clippingPlanes;
+      renderer.localClippingEnabled = true;
       renderer.clear();
       renderer.render(scene, camera);
 
-      // Terceiro passe: renderiza cena atrás do plano
-      dividingPlane.visible = false;
-      renderer.setRenderTarget(behindPlaneRT);
+      // Terceiro passO: renderiza cena atrás do plano
+      renderer.setRenderTarget(refratedRT);
       renderer.clear();
       renderer.render(scene, camera);
       dividingPlane.visible = true;
 
-      // Quarto passe: renderiza cena final
+      // Quarto passO: renderiza cena final
       renderer.setRenderTarget(null);
       renderer.clippingPlanes = [];
       dividingPlane.material.uniforms.transparentTexture.value = transparentRT.texture;
       dividingPlane.material.uniforms.reflectedTexture.value = reflectedRT.texture;
-      dividingPlane.material.uniforms.sceneTexture.value = behindPlaneRT.texture;
+      dividingPlane.material.uniforms.refractedTexture.value = refratedRT.texture;
       renderer.render(scene, camera);
     }
   </script>
