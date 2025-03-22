@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Shader Customizado com Reflexo e Transparência</title>
+  <title>Efeito do Gelo com shader customizado com refração e reflexão</title>
 </head>
 <body>
   <script type="module">
@@ -249,7 +249,7 @@
 
 
 //Segundo passo : renderiza a imagem refletida (reflexão)
-      const mirrorNormal = new THREE.Vector3(1, 0, 0); // Normal do plano (x = 0)
+      const mirrorNormal = new THREE.Vector3(1, 0, 0); // Normal do plano 
       const mirrorPoint = dividingPlane.position.clone(); // Ponto no plano
 
       // Reflete a posição da câmera
@@ -269,7 +269,7 @@
 
       // Atualiza a câmera refletida
       reflectionCamera.position.copy(reflectedPos);
-      reflectionCamera.up.copy(camera.up); // Opcional: pode refletir o "up" também, se necessário
+      reflectionCamera.up.copy(camera.up); 
       reflectionCamera.lookAt(reflectedTarget);
       reflectionCamera.updateMatrixWorld();
       reflectionCamera.projectionMatrix.copy(camera.projectionMatrix);
