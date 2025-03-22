@@ -56,7 +56,7 @@
         "reflectedTexture": { value: null },
         "planeTexture": { value: null },
         "refractedTexture": { value: null },// Nova textura para a cena atrás do plano
-        "refractionRatio": { value: 1.0 / 1.31 } // Índice de refração (ar/água = 1.0/1.33)
+        "refractionRatio": { value: 1.31} // Índice de refração 
       },
       vertexShader: `
         out vec2 vUv;
@@ -124,7 +124,7 @@
 
           vec4 fresnelMix = mix(refractionMix, reflColor, vReflectionFactor);
 
-          vec4 finalColor = mix(fresnelMix, planeTexColor, 0.7); // % textura da superfície
+          vec4 finalColor = mix(fresnelMix, planeTexColor, 0.6); // % textura da superfície
          
           // Aplicar transparência
           finalColor.a *= transparency;
@@ -162,11 +162,11 @@
 
       // Adiciona uma textura de ambiente
       const ambientTextureLoader = new THREE.CubeTextureLoader();
-      ambientTextureLoader.setPath('./textures/cube/Park2/');
+      ambientTextureLoader.setPath('./textures/cube/skyboxsun25deg/');
       const ambientTexture = ambientTextureLoader.load([
-        "posx.jpg", "negx.jpg",
-        "posy.jpg", "negy.jpg",
-        "posz.jpg", "negz.jpg"
+        "px.jpg", "nx.jpg",
+        "py.jpg", "ny.jpg",
+        "pz.jpg", "nz.jpg"
       ]);
       scene.background = ambientTexture;
       // light
@@ -187,7 +187,7 @@
         uniforms: {
           reflecting: { value: false },
           refracting: { value: false },
-          cubeTexture: { value: textureLoader.load('./textures/cube/Carbon.png') }
+          cubeTexture: { value: textureLoader.load('./textures/cube/lavatile.jpg') }
         },
         vertexShader: CustomCubeShader.vertexShader,
         fragmentShader: CustomCubeShader.fragmentShader,
@@ -295,12 +295,9 @@
       reflectionCamera.lookAt(reflectedTarget);
       reflectionCamera.updateMatrixWorld();
       reflectionCamera.projectionMatrix.copy(camera.projectionMatrix);
-      // Clipping Plane para cortar a parte do fundo no reflexo (objeto atrás do espelho)
-      const reflectionClipPlane = new THREE.Plane(new THREE.Vector3(-1, 0, 0), 0.2);
+    
 
-      // Adiciona o clipping plane à câmera refletida (só vai cortar o que está atrás do espelho)
-      reflectionCamera.clippingPlanes = [reflectionClipPlane];
-      reflectionCamera.localClippingEnabled = true;
+      
         // Renderiza usando câmera refletida
         renderer.setRenderTarget(reflectedRT);
         renderer.clippingPlanes = [new THREE.Plane(new THREE.Vector3(-1, 0, 0), 0.2)];
