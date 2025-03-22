@@ -98,13 +98,13 @@
         out vec4 fragColor;
 
         void main() {
-          if (vWorldPosition.y < -2.0) discard;
+          
 
           vec2 refractedUv = projected.xy / projected.w * 0.5 + 0.5;
           
           // Sample textures
           vec4 transColor = texture(transparentTexture, refractedUv);
-          vec4 reflColor = texture(reflectedTexture, vec2(1.0 - vUv.x, vUv.y));
+          vec4 reflColor = texture(reflectedTexture, vec2(vUv.x,vUv.y));
           vec4 planeTexColor = texture(planeTexture, vUv);
           vec4 behindColor = texture(refractedTexture, refractedUv);
 
@@ -113,7 +113,8 @@
 
           vec4 fresnelMix = mix(refractionMix, reflColor, vReflectionFactor);
 
-          vec4 finalColor = mix(fresnelMix, planeTexColor, 0.2); // % textura da superfície
+          //vec4 finalColor = mix(fresnelMix, planeTexColor, 0.2); // % textura da superfície
+          vec4 finalColor = reflColor;
           // Aplicar transparência
           finalColor.a *= transparency;
 
@@ -258,7 +259,7 @@
       // Segundo passe: renderiza cena refletida
       renderer.setRenderTarget(reflectedRT);
       const clippingPlanes = [
-               new THREE.Plane(new THREE.Vector3(-1, 0, 0), 1) // Clipping para objetos atrás do espelho
+               new THREE.Plane(new THREE.Vector3(-1, 0, 0), 1) // Clipping para objetos atrás do espelho x < 1 será recortado
            ];
       renderer.clippingPlanes = clippingPlanes;
       renderer.localClippingEnabled = true;

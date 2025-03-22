@@ -14,8 +14,6 @@
     // =======================================================================
     // Shaders
     // =======================================================================
-
-
     const CustomCubeShader = {
       uniforms: {
         cubeTexture: { value: null } // Textura padrão para os cubos
@@ -46,7 +44,7 @@
         "transparentTexture": { value: null },
         "reflectedTexture": { value: null },
         "planeTexture": { value: null },
-        "sceneTexture": { value: null },// Nova textura para a cena atrás do plano
+        "refractedTexture": { value: null },// Nova textura para a cena atrás do plano
         "refractionRatio": { value: 1.0 / 1.31 } // Índice de refração (ar/água = 1.0/1.33)
       },
       vertexShader: `
@@ -77,7 +75,7 @@
           vec3 refractDir = normalize(refract(I, vNormal, refractionRatio));
 
           // Ponto estimado de onde o raio refratado vai atingir "atrás" do plano
-          vec3 refractedPoint = vWorldPosition + refractDir * 5.0; // o '5.0' é um fator de profundidade, pode ajustar
+          vec3 refractedPoint = vWorldPosition + refractDir * 5.0; 
 
           // Projeta o ponto no espaço de tela
           projected = projectionMatrix * viewMatrix * vec4(refractedPoint, 1.0);
@@ -88,7 +86,7 @@
         uniform sampler2D transparentTexture;
         uniform sampler2D reflectedTexture;
         uniform sampler2D planeTexture;
-        uniform sampler2D sceneTexture;
+        uniform sampler2D refractedTexture;
         uniform float transparency;
 
         in vec2 vUv;
@@ -100,22 +98,23 @@
         out vec4 fragColor;
 
         void main() {
-          if (vWorldPosition.y < -2.0) discard;
+          
 
           vec2 refractedUv = projected.xy / projected.w * 0.5 + 0.5;
           
           // Sample textures
           vec4 transColor = texture(transparentTexture, refractedUv);
-          vec4 reflColor = texture(reflectedTexture, vec2(1.0 - refractedUv.x, refractedUv.y));
+          vec4 reflColor = texture(reflectedTexture, vec2(vUv.x,vUv.y));
           vec4 planeTexColor = texture(planeTexture, vUv);
-          vec4 behindColor = texture(sceneTexture, refractedUv);
+          vec4 behindColor = texture(refractedTexture, refractedUv);
 
           // Mistura de refração (cena atrás) com transparência da textura base
           vec4 refractionMix = mix(transColor, behindColor, 0.4); // % da cena refratada
 
           vec4 fresnelMix = mix(refractionMix, reflColor, vReflectionFactor);
 
-          vec4 finalColor = mix(fresnelMix, planeTexColor, 0.3); // % textura da superfície
+          //vec4 finalColor = mix(fresnelMix, planeTexColor, 0.2); // % textura da superfície
+          vec4 finalColor = reflColor;
           // Aplicar transparência
           finalColor.a *= transparency;
 
@@ -129,9 +128,12 @@
     // =======================================================================
     let scene, camera, renderer, controls,cube1,cube2;
     let dividingPlane;
-    let transparentRT, reflectedRT, behindPlaneRT;
+    let transparentRT, reflectedRT, refratedRT;
     let clipPlaneTransparent, clipPlaneReflected;
+    let reflectionCamera;
 
+    init();
+    animate();
 
     function init() {
       // Inicialização do renderer com WebGL
@@ -145,6 +147,7 @@
       camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
       camera.position.set(0, 2, 10);
       controls = new OrbitControls(camera, renderer.domElement);
+      reflectionCamera = camera.clone();
 
       // Adiciona uma textura de ambiente
       const ambientTextureLoader = new THREE.CubeTextureLoader();
@@ -163,7 +166,6 @@
 				const directionalLight = new THREE.DirectionalLight( 0xffffff, 0.6 );
 				directionalLight.position.set( - 1, 1, 1 );
 				scene.add( directionalLight );
-
 
 
       const textureLoader = new THREE.TextureLoader();
@@ -201,7 +203,7 @@
         format: THREE.RGBAFormat
       });
 
-      behindPlaneRT = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, {
+      refratedRT = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, {
         minFilter: THREE.LinearFilter,
         magFilter: THREE.LinearFilter,
         format: THREE.RGBAFormat
@@ -240,7 +242,7 @@
       renderer.setSize(window.innerWidth, window.innerHeight);
       transparentRT.setSize(window.innerWidth, window.innerHeight);
       reflectedRT.setSize(window.innerWidth, window.innerHeight);
-      behindPlaneRT.setSize(window.innerWidth, window.innerHeight);
+      refratedRT.setSize(window.innerWidth, window.innerHeight);
     }
 
     function animate() {
@@ -248,6 +250,7 @@
       controls.update();
       cube2.rotation.x += 0.01;
       cube2.rotation.y += 0.01;
+
       // Primeiro passe: renderiza cena transparente
       dividingPlane.visible = false;
       renderer.clippingPlanes = [clipPlaneTransparent];
@@ -255,26 +258,55 @@
       renderer.clear();
       renderer.render(scene, camera);
 
-      // Segundo passe: renderiza cena refletida
-      //renderer.clear();
-      renderer.clippingPlanes = [clipPlaneReflected];
-      renderer.setRenderTarget(reflectedRT);
-      renderer.clear();
-      renderer.render(scene, camera);
+      const mirrorNormal = new THREE.Vector3(1, 0, 0); // Normal do plano (x = 0)
+      const mirrorPoint = dividingPlane.position.clone(); // Ponto no plano
 
-      // Terceiro passe: renderiza cena atrás do plano
-      
-      renderer.setRenderTarget(behindPlaneRT);
+      // Reflete a posição da câmera
+      const camToPlane = camera.position.clone().sub(mirrorPoint);
+      const distance = camToPlane.dot(mirrorNormal);
+      const reflectedPos = camera.position.clone().sub(mirrorNormal.clone().multiplyScalar(2 * distance));
+
+      // Reflete o ponto para onde a câmera está olhando
+      const camTarget = new THREE.Vector3();
+      camera.getWorldDirection(camTarget);
+      const lookAtPoint = camera.position.clone().add(camTarget);
+      const lookAtToPlane = lookAtPoint.clone().sub(mirrorPoint);
+      const lookAtDist = lookAtToPlane.dot(mirrorNormal);
+      const reflectedTarget = lookAtPoint.clone().sub(mirrorNormal.clone().multiplyScalar(2 * lookAtDist));
+
+      // Atualiza a câmera refletida
+      reflectionCamera.position.copy(reflectedPos);
+      reflectionCamera.up.copy(camera.up); // Opcional: pode refletir o "up" também, se necessário
+      reflectionCamera.lookAt(reflectedTarget);
+      reflectionCamera.updateMatrixWorld();
+      reflectionCamera.projectionMatrix.copy(camera.projectionMatrix);
+      // Clipping Plane para cortar a parte do fundo no reflexo (objeto atrás do espelho)
+      const reflectionClipPlane = new THREE.Plane(new THREE.Vector3(-1, 0, 0), 0.2);
+
+      // Adiciona o clipping plane à câmera refletida (só vai cortar o que está atrás do espelho)
+      reflectionCamera.clippingPlanes = [reflectionClipPlane];
+      reflectionCamera.localClippingEnabled = true;
+        // Renderiza usando câmera refletida
+        renderer.setRenderTarget(reflectedRT);
+        renderer.clippingPlanes = [new THREE.Plane(new THREE.Vector3(-1, 0, 0), 0.2)];
+        renderer.clear();
+        renderer.render(scene, reflectionCamera);
+
+
+
+
+      // Terceiro passO: renderiza cena atrás do plano
+      renderer.setRenderTarget(refratedRT);
       renderer.clear();
       renderer.render(scene, camera);
       dividingPlane.visible = true;
 
-      // Quarto passe: renderiza cena final
+      // Quarto passO: renderiza cena final
       renderer.setRenderTarget(null);
       renderer.clippingPlanes = [];
       dividingPlane.material.uniforms.transparentTexture.value = transparentRT.texture;
       dividingPlane.material.uniforms.reflectedTexture.value = reflectedRT.texture;
-      dividingPlane.material.uniforms.sceneTexture.value = behindPlaneRT.texture;
+      dividingPlane.material.uniforms.refractedTexture.value = refratedRT.texture;
       renderer.render(scene, camera);
     }
   </script>
